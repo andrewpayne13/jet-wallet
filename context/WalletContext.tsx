@@ -30,7 +30,7 @@ const createTransaction = (
     status: TransactionStatus.COMPLETED,
     currency: payload.coinId,
     // Use the price implied by the caller's usdValue/amount so we capture live price at time of tx.
-    price: payload.amount ? payload.usdValue / payload.amount : COINS[payload.coinId].usdPrice,
+    price: payload.amount ? payload.usdValue / payload.amount : 0,
     ...payload,
 });
 
@@ -75,8 +75,8 @@ const handleTransaction = (state: WalletState, payload: TransactionPayload): Wal
     return { ...state, wallets: newWallets, transactions: newTransactions };
 };
 
-const handleStake = (state: WalletState, payload: { coinId: CoinID; amount: number }): WalletState => {
-    const { coinId, amount } = payload;
+const handleStake = (state: WalletState, payload: { coinId: CoinID; amount: number; currentPrice?: number }): WalletState => {
+    const { coinId, amount, currentPrice = 0 } = payload;
     const newWallets = state.wallets.map(w => w.coinId === coinId ? { ...w, balance: w.balance - amount } : w);
     
     const newStaked = [...state.staked];
@@ -91,14 +91,14 @@ const handleStake = (state: WalletState, payload: { coinId: CoinID; amount: numb
         type: TransactionType.STAKE,
         coinId,
         amount,
-        usdValue: COINS[coinId].usdPrice * amount,
+        usdValue: currentPrice * amount,
     });
 
     return { ...state, wallets: newWallets, staked: newStaked, transactions: [transaction, ...state.transactions] };
 };
 
-const handleUnstake = (state: WalletState, payload: { coinId: CoinID; amount: number }): WalletState => {
-    const { coinId, amount } = payload;
+const handleUnstake = (state: WalletState, payload: { coinId: CoinID; amount: number; currentPrice?: number }): WalletState => {
+    const { coinId, amount, currentPrice = 0 } = payload;
     const newWallets = state.wallets.map(w => w.coinId === coinId ? { ...w, balance: w.balance + amount } : w);
     const newStaked = state.staked.map(s => s.coinId === coinId ? { ...s, amount: s.amount - amount } : s).filter(s => s.amount > 0);
     
@@ -106,7 +106,7 @@ const handleUnstake = (state: WalletState, payload: { coinId: CoinID; amount: nu
         type: TransactionType.UNSTAKE,
         coinId,
         amount,
-        usdValue: COINS[coinId].usdPrice * amount,
+        usdValue: currentPrice * amount,
     });
 
     return { ...state, wallets: newWallets, staked: newStaked, transactions: [transaction, ...state.transactions] };

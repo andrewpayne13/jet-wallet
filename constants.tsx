@@ -43,12 +43,12 @@ const DogeIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
 );
 
 export const COINS: Record<CoinID, Coin> = {
-  [CoinID.BTC]: { id: CoinID.BTC, name: 'Bitcoin', icon: BtcIcon, usdPrice: 68000.50, address: 'bc1qjetwalletxxxxxxxxxxxxxxxxxxxxxxxyyyyyy', stakingApy: undefined },
-  [CoinID.ETH]: { id: CoinID.ETH, name: 'Ethereum', icon: EthIcon, usdPrice: 3500.75, address: '0xJETWALLETxxxxxxxxxxxxxxxxxxxxxxxxxYYYYYY', stakingApy: 3.5 },
-  [CoinID.XRP]: { id: CoinID.XRP, name: 'XRP', icon: XrpIcon, usdPrice: 0.48, address: 'rJETWALLETxxxxxxxxxxxxxxxxxxxxxYYYYYY', stakingApy: undefined },
-  [CoinID.USDT]: { id: CoinID.USDT, name: 'Tether', icon: UsdtIcon, usdPrice: 1.00, address: '0xJETWALLETtetherxxxxxxxxxxxxxxxxxxxYYYYYY', stakingApy: 1.5 },
-  [CoinID.SOL]: { id: CoinID.SOL, name: 'Solana', icon: SolIcon, usdPrice: 150.25, address: 'SoLJETWALLETxxxxxxxxxxxxxxxxxxxxxxxxxYYYYY', stakingApy: 6.8 },
-  [CoinID.DOGE]: { id: CoinID.DOGE, name: 'Dogecoin', icon: DogeIcon, usdPrice: 0.15, address: 'DJETWALLETxxxxxxxxxxxxxxxxxxxxxYYYYYY', stakingApy: undefined },
+  [CoinID.BTC]: { id: CoinID.BTC, name: 'Bitcoin', icon: BtcIcon, usdPrice: 0, address: 'bc1qjetwalletxxxxxxxxxxxxxxxxxxxxxxxyyyyyy', stakingApy: undefined },
+  [CoinID.ETH]: { id: CoinID.ETH, name: 'Ethereum', icon: EthIcon, usdPrice: 0, address: '0xJETWALLETxxxxxxxxxxxxxxxxxxxxxxxxxYYYYYY', stakingApy: 3.5 },
+  [CoinID.XRP]: { id: CoinID.XRP, name: 'XRP', icon: XrpIcon, usdPrice: 0, address: 'rJETWALLETxxxxxxxxxxxxxxxxxxxxxYYYYYY', stakingApy: undefined },
+  [CoinID.USDT]: { id: CoinID.USDT, name: 'Tether', icon: UsdtIcon, usdPrice: 0, address: '0xJETWALLETtetherxxxxxxxxxxxxxxxxxxxYYYYYY', stakingApy: 1.5 },
+  [CoinID.SOL]: { id: CoinID.SOL, name: 'Solana', icon: SolIcon, usdPrice: 0, address: 'SoLJETWALLETxxxxxxxxxxxxxxxxxxxxxxxxxYYYYY', stakingApy: 6.8 },
+  [CoinID.DOGE]: { id: CoinID.DOGE, name: 'Dogecoin', icon: DogeIcon, usdPrice: 0, address: 'DJETWALLETxxxxxxxxxxxxxxxxxxxxxYYYYYY', stakingApy: undefined },
 };
 
 export const INITIAL_WALLETS: Wallet[] = [
