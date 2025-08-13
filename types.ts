@@ -13,6 +13,7 @@ export interface User {
   cash?: CashAccount[];
   transactions: Transaction[];
   staked: Staked[];
+  paymentMethods?: PaymentMethodDetails[];
 }
 
 export interface Wallet {
@@ -104,14 +105,22 @@ export interface PaymentMethodDetails {
   id: string;
   type: PaymentMethod;
   name: string;
+  // Card details
   cardType?: CardType;
-  lastFourDigits?: string;
+  cardNumber?: string;
+  expiryDate?: string;
+  cvv?: string;
+  cardHolderName?: string;
+  // Bank details
   bankName?: string;
   accountNumber?: string;
+  routingNumber?: string;
   sortCode?: string;
   iban?: string;
   swiftCode?: string;
+  accountHolderName?: string;
   isDefault?: boolean;
+  createdAt?: string;
 }
 
 export interface DepositRequest {

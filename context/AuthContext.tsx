@@ -95,7 +95,7 @@ export const AuthContext = createContext<{
   deleteUser: (userId: string) => void;
   // Admin utilities
   createUser: (data: Partial<User>) => User | null;
-  updateUser: (userId: string, patch: Partial<User>) => void;
+  updateUser: (user: User) => void;
   impersonate: (userId: string) => void;
 }>({
   currentUser: null,
@@ -227,8 +227,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return user;
   };
 
-  const updateUser = (userId: string, patch: Partial<User>) => {
-    dispatch({ type: 'UPDATE_USER', payload: { userId, patch } });
+  const updateUser = (user: User) => {
+    dispatch({ type: 'UPDATE_USER', payload: { userId: user.id, patch: user } });
   };
 
   const impersonate = (userId: string) => {
