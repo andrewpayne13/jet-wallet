@@ -1,6 +1,6 @@
 import React, { createContext, useReducer, ReactNode, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { User, WalletState } from '../types';
+import { User, WalletState, isValidEmail } from '../types';
 
 interface AuthState {
   users: Record<string, User>;
@@ -149,8 +149,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, [state]);
 
   const login = (email: string): boolean => {
+    if (!email || !isValidEmail(email)) {
+      return false;
+    }
+    
     const usersArr = Object.values(state.users) as User[];
-    const user = usersArr.find((u) => u.email === email);
+    const user = usersArr.find((u) => u.email.toLowerCase() === email.toLowerCase());
     if (user) {
       dispatch({ type: 'LOGIN', payload: user });
       if (user.role === 'admin' || user.email === 'admin@jetwallet.io') {
@@ -169,14 +173,19 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const register = (email: string): User | null => {
+    if (!email || !isValidEmail(email)) {
+      return null;
+    }
+    
     const usersArr = Object.values(state.users) as User[];
-    const existingUser = usersArr.find((u) => u.email === email);
+    const existingUser = usersArr.find((u) => u.email.toLowerCase() === email.toLowerCase());
     if (existingUser) {
       return null;
     }
+    
     const newUser: User = {
-      id: `user_${Date.now()}`,
-      email,
+      id: `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      email: email.toLowerCase(),
       role: 'user',
       registeredAt: Date.now(),
       wallets: [],

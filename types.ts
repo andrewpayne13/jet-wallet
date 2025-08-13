@@ -99,3 +99,41 @@ export interface WalletState {
   transactions: Transaction[];
   staked: Staked[];
 }
+
+// New types for better error handling and API responses
+export interface ApiError {
+  message: string;
+  code?: string;
+  details?: any;
+}
+
+export interface ApiResponse<T> {
+  data?: T;
+  error?: ApiError;
+  loading?: boolean;
+}
+
+// Type guards for runtime type checking
+export const isValidEmail = (email: string): boolean => {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email);
+};
+
+export const isValidCoinID = (value: any): value is CoinID => {
+  return Object.values(CoinID).includes(value);
+};
+
+export const isValidTransactionType = (value: any): value is TransactionType => {
+  return Object.values(TransactionType).includes(value);
+};
+
+// Utility types for better component props
+export interface BaseComponentProps {
+  className?: string;
+  children?: React.ReactNode;
+}
+
+export interface LoadingState {
+  isLoading: boolean;
+  error?: string | null;
+}

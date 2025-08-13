@@ -61,19 +61,30 @@ export const PricesProvider: React.FC<{ children: React.ReactNode; intervalMs?: 
   });
 
   const refresh = useCallback(async () => {
-    const latest = await fetchLivePrices();
-    // Merge new values into current, keeping last known if a symbol is missing.
-    setPrices(prev => {
-      const merged = { ...prev, ...(latest as Partial<Prices>) };
-      try {
-        localStorage.setItem(
-          "jet_wallet_prices",
-          JSON.stringify({ prices: merged, lastUpdated: Date.now() })
-        );
-      } catch {}
-      return merged;
-    });
-    setLastUpdated(Date.now());
+    try {
+      const latest = await fetchLivePrices();
+      
+      // Only update if we got valid data
+      if (latest && Object.keys(latest).length > 0) {
+        // Merge new values into current, keeping last known if a symbol is missing.
+        setPrices(prev => {
+          const merged = { ...prev, ...(latest as Partial<Prices>) };
+          try {
+            localStorage.setItem(
+              "jet_wallet_prices",
+              JSON.stringify({ prices: merged, lastUpdated: Date.now() })
+            );
+          } catch (error) {
+            console.warn('Failed to save prices to localStorage:', error);
+          }
+          return merged;
+        });
+        setLastUpdated(Date.now());
+      }
+    } catch (error) {
+      console.error('Failed to fetch live prices:', error);
+      // Don't update lastUpdated on error to indicate stale data
+    }
   }, []);
 
   useEffect(() => {

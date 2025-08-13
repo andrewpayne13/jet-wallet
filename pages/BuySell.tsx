@@ -1,9 +1,9 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useWallet } from '../hooks/useWallet';
 import { COINS } from '../constants';
 import { usePrices } from '../hooks/usePrices';
-import { CoinID, TransactionType } from '../types';
+import { CoinID, TransactionType, isValidCoinID } from '../types';
 
 const Spinner: React.FC = () => (
     <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
@@ -71,10 +71,31 @@ const TransactionForm: React.FC<{ type: 'buy' | 'sell' }> = ({ type }) => {
         }
     };
     
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = useCallback((e: React.FormEvent) => {
         e.preventDefault();
+        setResultMessage('');
+        
+        // Validation
         const amountNum = parseFloat(cryptoAmount);
-        if(!amountNum) return;
+        const fiatNum = parseFloat(fiatAmount);
+        
+        if (!amountNum || amountNum <= 0) {
+            setResultMessage('Error: Please enter a valid amount.');
+            setTimeout(() => setResultMessage(''), 3000);
+            return;
+        }
+        
+        if (!fiatNum || fiatNum <= 0) {
+            setResultMessage('Error: Please enter a valid USD amount.');
+            setTimeout(() => setResultMessage(''), 3000);
+            return;
+        }
+        
+        if (!isValidCoinID(selectedCoinId)) {
+            setResultMessage('Error: Invalid cryptocurrency selected.');
+            setTimeout(() => setResultMessage(''), 3000);
+            return;
+        }
 
         if (type === 'sell') {
             if (!wallet || wallet.balance < amountNum) {
@@ -84,25 +105,39 @@ const TransactionForm: React.FC<{ type: 'buy' | 'sell' }> = ({ type }) => {
             }
         }
 
-        setIsProcessing(true);
-        setResultMessage('');
-        setTimeout(() => {
-            dispatch({
-                type: 'SIMULATE_TRANSACTION',
-                payload: {
-                    type: type === 'buy' ? TransactionType.BUY : TransactionType.SELL,
-                    coinId: selectedCoinId,
-                    amount: amountNum,
-                    usdValue: parseFloat(fiatAmount)
-                }
-            });
-            setIsProcessing(false);
-            setResultMessage(`${type === 'buy' ? 'Purchase' : 'Sale'} successful!`);
-            setFiatAmount('');
-            setCryptoAmount('');
+        // Minimum transaction limits
+        if (fiatNum < 1) {
+            setResultMessage('Error: Minimum transaction amount is $1.00.');
             setTimeout(() => setResultMessage(''), 3000);
-        }, 2000);
-    };
+            return;
+        }
+
+        setIsProcessing(true);
+        
+        // Simulate async transaction
+        setTimeout(() => {
+            try {
+                dispatch({
+                    type: 'SIMULATE_TRANSACTION',
+                    payload: {
+                        type: type === 'buy' ? TransactionType.BUY : TransactionType.SELL,
+                        coinId: selectedCoinId,
+                        amount: amountNum,
+                        usdValue: fiatNum
+                    }
+                });
+                setResultMessage(`${type === 'buy' ? 'Purchase' : 'Sale'} successful!`);
+                setFiatAmount('');
+                setCryptoAmount('');
+                setTimeout(() => setResultMessage(''), 3000);
+            } catch (error) {
+                setResultMessage('Error: Transaction failed. Please try again.');
+                setTimeout(() => setResultMessage(''), 3000);
+            } finally {
+                setIsProcessing(false);
+            }
+        }, 1500);
+    }, [cryptoAmount, fiatAmount, selectedCoinId, type, wallet, dispatch]);
 
     return (
         <form onSubmit={handleSubmit} className="space-y-4">
