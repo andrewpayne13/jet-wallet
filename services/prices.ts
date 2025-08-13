@@ -1,143 +1,63 @@
 import { CoinID } from "../types";
 
-// CoinGecko API mapping for supported cryptocurrencies
-const COINGECKO_IDS: Record<CoinID, string> = {
-  [CoinID.BTC]: "bitcoin",
-  [CoinID.ETH]: "ethereum",
-  [CoinID.XRP]: "ripple",
-  [CoinID.USDT]: "tether",
-  [CoinID.SOL]: "solana",
-  [CoinID.DOGE]: "dogecoin",
-};
-
-// CoinCap API mapping (fallback)
-const COINCAP_IDS: Record<CoinID, string> = {
-  [CoinID.BTC]: "bitcoin",
-  [CoinID.ETH]: "ethereum",
-  [CoinID.XRP]: "xrp",
-  [CoinID.USDT]: "tether",
-  [CoinID.SOL]: "solana",
-  [CoinID.DOGE]: "dogecoin",
-};
-
-// Fetch prices from CoinGecko API (primary source)
-async function fetchFromCoinGecko(): Promise<Partial<Record<CoinID, number>>> {
-  const idsParam = Object.values(COINGECKO_IDS).join(",");
-  const url = `https://api.coingecko.com/api/v3/simple/price?ids=${idsParam}&vs_currencies=usd`;
-
-  try {
-    const res = await fetch(url, { 
-      cache: "no-store",
-      headers: {
-        'Accept': 'application/json',
-      }
-    });
-    
-    if (!res.ok) {
-      throw new Error(`CoinGecko API error: ${res.status} ${res.statusText}`);
-    }
-
-    const json = (await res.json()) as Record<string, { usd: number }>;
-    
-    const prices: Partial<Record<CoinID, number>> = {};
-    
-    // Map the response back to our CoinID enum
-    Object.entries(COINGECKO_IDS).forEach(([coinId, geckoId]) => {
-      const price = json[geckoId]?.usd;
-      if (typeof price === 'number' && price > 0) {
-        prices[coinId as CoinID] = price;
-      }
-    });
-
-    console.log('CoinGecko prices fetched:', prices);
-    return prices;
-  } catch (error) {
-    console.error('CoinGecko fetch failed:', error);
-    throw error;
-  }
+// Interface for the API response
+interface PriceApiResponse {
+  success: boolean;
+  data?: Record<string, number>;
+  error?: string;
+  source?: string;
+  timestamp?: number;
 }
 
-// Fetch prices from CoinCap API (fallback)
-async function fetchFromCoinCap(): Promise<Partial<Record<CoinID, number>>> {
-  const idsParam = Object.values(COINCAP_IDS).join(",");
-  const url = `https://api.coincap.io/v2/assets?ids=${idsParam}`;
-
-  try {
-    const res = await fetch(url, { 
-      cache: "no-store",
-      headers: {
-        'Accept': 'application/json',
-      }
-    });
-    
-    if (!res.ok) {
-      throw new Error(`CoinCap API error: ${res.status} ${res.statusText}`);
-    }
-
-    const json = (await res.json()) as { data: { id: string; priceUsd: string }[] };
-    
-    if (!json.data || !Array.isArray(json.data)) {
-      throw new Error('Invalid CoinCap API response format');
-    }
-
-    const prices: Partial<Record<CoinID, number>> = {};
-    
-    // Map the response back to our CoinID enum
-    json.data.forEach((asset) => {
-      const coinId = Object.entries(COINCAP_IDS).find(([_, capId]) => capId === asset.id)?.[0] as CoinID;
-      if (coinId && asset.priceUsd) {
-        const price = parseFloat(asset.priceUsd);
-        if (!isNaN(price) && price > 0) {
-          prices[coinId] = price;
-        }
-      }
-    });
-
-    console.log('CoinCap prices fetched:', prices);
-    return prices;
-  } catch (error) {
-    console.error('CoinCap fetch failed:', error);
-    throw error;
-  }
-}
-
-// Fallback static prices (last resort)
-function getFallbackPrices(): Partial<Record<CoinID, number>> {
-  console.warn('Using fallback static prices - API calls failed');
-  return {
-    [CoinID.BTC]: 43250.00,
-    [CoinID.ETH]: 2580.00,
-    [CoinID.XRP]: 0.52,
-    [CoinID.USDT]: 1.00,
-    [CoinID.SOL]: 98.50,
-    [CoinID.DOGE]: 0.078,
-  };
-}
-
-// Main function to fetch live cryptocurrency prices
+// Main function to fetch live cryptocurrency prices via Vercel API
 export async function fetchLivePrices(): Promise<Partial<Record<CoinID, number>>> {
-  console.log('Fetching live cryptocurrency prices...');
+  console.log('Fetching live cryptocurrency prices via API...');
   
-  // Try CoinGecko first (most reliable)
   try {
-    const prices = await fetchFromCoinGecko();
-    if (Object.keys(prices).length > 0) {
-      return prices;
-    }
-  } catch (error) {
-    console.warn('CoinGecko failed, trying CoinCap...', error);
-  }
+    // Use relative URL for Vercel deployment, absolute for development
+    const apiUrl = process.env.NODE_ENV === 'development' 
+      ? 'http://localhost:3000/api/prices'
+      : '/api/prices';
+    
+    const response = await fetch(apiUrl, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+      },
+      cache: 'no-store',
+    });
 
-  // Try CoinCap as fallback
-  try {
-    const prices = await fetchFromCoinCap();
-    if (Object.keys(prices).length > 0) {
-      return prices;
+    if (!response.ok) {
+      throw new Error(`API request failed: ${response.status} ${response.statusText}`);
     }
-  } catch (error) {
-    console.warn('CoinCap failed, using fallback prices...', error);
-  }
 
-  // Use static fallback prices as last resort
-  return getFallbackPrices();
+    const result: PriceApiResponse = await response.json();
+
+    if (!result.success) {
+      throw new Error(result.error || 'API returned unsuccessful response');
+    }
+
+    if (!result.data || Object.keys(result.data).length === 0) {
+      throw new Error('No price data received from API');
+    }
+
+    // Convert the response data to our CoinID format
+    const prices: Partial<Record<CoinID, number>> = {};
+    
+    Object.entries(result.data).forEach(([key, price]) => {
+      if (key in CoinID && typeof price === 'number' && price > 0) {
+        prices[key as CoinID] = price;
+      }
+    });
+
+    console.log(`Live prices fetched successfully from ${result.source}:`, prices);
+    return prices;
+
+  } catch (error) {
+    console.error('Failed to fetch live prices:', error);
+    
+    // Instead of fallback static prices, throw error to let UI handle it
+    throw new Error(`Unable to fetch live cryptocurrency prices: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
 }
