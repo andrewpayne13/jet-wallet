@@ -160,6 +160,47 @@ const Deposit: React.FC = () => {
     }
   };
 
+  const deletePaymentMethod = (methodId: string) => {
+    if (!currentUser) {
+      return;
+    }
+
+    const methodToDelete = userPaymentMethods.find(pm => pm.id === methodId);
+    if (!methodToDelete) {
+      return;
+    }
+
+    // Confirm deletion
+    if (!window.confirm(`Are you sure you want to delete ${methodToDelete.name}?`)) {
+      return;
+    }
+
+    // Remove the payment method from the user's payment methods
+    const updatedPaymentMethods = userPaymentMethods.filter(pm => pm.id !== methodId);
+    
+    // If we deleted the default method and there are other methods, make the first one default
+    if (methodToDelete.isDefault && updatedPaymentMethods.length > 0) {
+      updatedPaymentMethods[0].isDefault = true;
+    }
+
+    const updatedUser = {
+      ...currentUser,
+      paymentMethods: updatedPaymentMethods,
+    };
+
+    try {
+      updateUser(updatedUser);
+      
+      // If the deleted method was selected, clear the selection
+      if (selectedPaymentMethodId === methodId) {
+        setSelectedPaymentMethodId('');
+      }
+    } catch (error) {
+      console.error('Error updating user:', error);
+      alert('Failed to delete payment method. Please try again.');
+    }
+  };
+
   const selectedFiatData = fiatOptions.find(f => f.id === selectedFiat);
 
   return (
@@ -229,15 +270,17 @@ const Deposit: React.FC = () => {
             {userPaymentMethods.map((method) => (
               <div
                 key={method.id}
-                onClick={() => setSelectedPaymentMethodId(method.id)}
-                className={`p-4 rounded-lg border cursor-pointer transition-all duration-200 ${
+                className={`p-4 rounded-lg border transition-all duration-200 ${
                   selectedPaymentMethodId === method.id
                     ? 'border-blue-500 bg-blue-500/20'
                     : 'border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/10'
                 }`}
               >
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
+                  <div 
+                    className="flex items-center space-x-3 flex-1 cursor-pointer"
+                    onClick={() => setSelectedPaymentMethodId(method.id)}
+                  >
                     <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
                       <span className="text-white text-sm font-bold">
                         {method.type === PaymentMethod.CREDIT_CARD || method.type === PaymentMethod.DEBIT_CARD ? '💳' : '🏦'}
@@ -250,11 +293,25 @@ const Deposit: React.FC = () => {
                       </div>
                     </div>
                   </div>
-                  {method.isDefault && (
-                    <span className="bg-green-500/20 text-green-400 text-xs px-2 py-1 rounded-full border border-green-500/30">
-                      Default
-                    </span>
-                  )}
+                  <div className="flex items-center space-x-2">
+                    {method.isDefault && (
+                      <span className="bg-green-500/20 text-green-400 text-xs px-2 py-1 rounded-full border border-green-500/30">
+                        Default
+                      </span>
+                    )}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        deletePaymentMethod(method.id);
+                      }}
+                      className="p-2 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-colors"
+                      title="Delete payment method"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}
