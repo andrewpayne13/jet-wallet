@@ -24,12 +24,19 @@ async function fetchFromCoinGecko() {
   const url = `https://api.coingecko.com/api/v3/simple/price?ids=${idsParam}&vs_currencies=usd`;
 
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+
     const response = await fetch(url, {
+      signal: controller.signal,
       headers: {
         'Accept': 'application/json',
-        'User-Agent': 'JetWallet/1.0'
+        'User-Agent': 'Mozilla/5.0 (compatible; JetWallet/1.0)',
+        'Cache-Control': 'no-cache'
       }
     });
+    
+    clearTimeout(timeoutId);
     
     if (!response.ok) {
       throw new Error(`CoinGecko API error: ${response.status}`);
@@ -56,12 +63,19 @@ async function fetchFromCoinCap() {
   const url = `https://api.coincap.io/v2/assets?ids=${idsParam}`;
 
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+
     const response = await fetch(url, {
+      signal: controller.signal,
       headers: {
         'Accept': 'application/json',
-        'User-Agent': 'JetWallet/1.0'
+        'User-Agent': 'Mozilla/5.0 (compatible; JetWallet/1.0)',
+        'Cache-Control': 'no-cache'
       }
     });
+    
+    clearTimeout(timeoutId);
     
     if (!response.ok) {
       throw new Error(`CoinCap API error: ${response.status}`);
@@ -81,6 +95,45 @@ async function fetchFromCoinCap() {
         if (!isNaN(price) && price > 0) {
           prices[coinId] = price;
         }
+      }
+    });
+
+    return prices;
+  } catch (error) {
+    throw error;
+  }
+}
+
+// Alternative API source using CryptoCompare
+async function fetchFromCryptoCompare() {
+  const symbols = Object.keys(COINGECKO_IDS).join(',');
+  const url = `https://min-api.cryptocompare.com/data/pricemulti?fsyms=${symbols}&tsyms=USD`;
+
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+    const response = await fetch(url, {
+      signal: controller.signal,
+      headers: {
+        'Accept': 'application/json',
+        'User-Agent': 'Mozilla/5.0 (compatible; JetWallet/1.0)'
+      }
+    });
+    
+    clearTimeout(timeoutId);
+    
+    if (!response.ok) {
+      throw new Error(`CryptoCompare API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    
+    const prices = {};
+    Object.keys(COINGECKO_IDS).forEach((coinId) => {
+      const price = data[coinId]?.USD;
+      if (typeof price === 'number' && price > 0) {
+        prices[coinId] = price;
       }
     });
 
@@ -137,10 +190,26 @@ export default async function handler(req, res) {
         return;
       }
     } catch (error) {
+      // Silent fallback to CryptoCompare
+    }
+
+    // Try CryptoCompare as third fallback
+    try {
+      const prices = await fetchFromCryptoCompare();
+      if (Object.keys(prices).length > 0) {
+        res.status(200).json({ 
+          success: true, 
+          data: prices, 
+          source: 'cryptocompare',
+          timestamp: Date.now()
+        });
+        return;
+      }
+    } catch (error) {
       // Silent failure
     }
 
-    // If both APIs fail, return error (no fallback static prices)
+    // If all APIs fail, return error (no fallback static prices)
     res.status(503).json({ 
       success: false, 
       error: 'Service temporarily unavailable',
