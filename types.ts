@@ -76,12 +76,49 @@ export enum TransactionType {
   SWAP = 'SWAP',
   STAKE = 'STAKE',
   UNSTAKE = 'UNSTAKE',
+  DEPOSIT = 'DEPOSIT',
+  WITHDRAW = 'WITHDRAW',
 }
 
 export enum TransactionStatus {
     PENDING = 'PENDING',
     COMPLETED = 'COMPLETED',
     FAILED = 'FAILED',
+}
+
+export enum PaymentMethod {
+  DEBIT_CARD = 'DEBIT_CARD',
+  CREDIT_CARD = 'CREDIT_CARD',
+  BANK_TRANSFER = 'BANK_TRANSFER',
+  SWIFT_TRANSFER = 'SWIFT_TRANSFER',
+  UK_FASTER_PAYMENTS = 'UK_FASTER_PAYMENTS',
+}
+
+export enum CardType {
+  VISA = 'VISA',
+  MASTERCARD = 'MASTERCARD',
+  AMEX = 'AMEX',
+}
+
+export interface PaymentMethodDetails {
+  id: string;
+  type: PaymentMethod;
+  name: string;
+  cardType?: CardType;
+  lastFourDigits?: string;
+  bankName?: string;
+  accountNumber?: string;
+  sortCode?: string;
+  iban?: string;
+  swiftCode?: string;
+  isDefault?: boolean;
+}
+
+export interface DepositRequest {
+  amount: number;
+  fiatId: FiatID;
+  paymentMethodId: string;
+  paymentMethod: PaymentMethod;
 }
 
 export interface Coin {

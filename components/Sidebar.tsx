@@ -18,6 +18,9 @@ const ExchangeIcon = (props: React.SVGProps<SVGSVGElement>) => (
 const EarnIcon = (props: React.SVGProps<SVGSVGElement>) => (
     <svg {...props} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="M2 12h2"/><path d="m4.93 19.07 1.41-1.41"/><path d="M12 22v-2"/><path d="m19.07 19.07-1.41-1.41"/><path d="M22 12h-2"/><path d="m19.07 4.93-1.41 1.41"/><circle cx="12" cy="12" r="5"/><path d="M12 8v4l2 2"/></svg>
 );
+const DepositIcon = (props: React.SVGProps<SVGSVGElement>) => (
+  <svg {...props} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/><path d="M8 12h8"/><path d="M12 8v8"/></svg>
+);
 const HistoryIcon = (props: React.SVGProps<SVGSVGElement>) => (
   <svg {...props} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 6v6l4 2"/><path d="M22 12A10 10 0 1 1 12 2a10 10 0 0 1 10 10z"/></svg>
 );
@@ -34,6 +37,7 @@ const navItems = [
   { path: '/buy-sell', label: 'Buy & Sell', icon: BuySellIcon },
   { path: '/exchange', label: 'Exchange', icon: ExchangeIcon },
   { path: '/earn', label: 'Earn', icon: EarnIcon },
+  { path: '/deposit', label: 'Deposit', icon: DepositIcon },
   { path: '/history', label: 'History', icon: HistoryIcon },
 ];
 

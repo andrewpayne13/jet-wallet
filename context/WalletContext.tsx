@@ -9,10 +9,11 @@ type Action =
   | { type: 'UNSTAKE'; payload: { coinId: CoinID; amount: number } };
 
 // --- Helper Types ---
-type TransactionPayload = Omit<Transaction, 'id' | 'date' | 'hash' | 'status' | 'currency' | 'price'> & {
+type TransactionPayload = Omit<Transaction, 'id' | 'date' | 'hash' | 'status' | 'price'> & {
   from?: { coinId: CoinID; amount: number; usdValue: number };
   to?: { coinId: CoinID; amount: number; usdValue: number };
   coinId: CoinID;
+  currency: string;
   amount: number;
   usdValue: number;
   type: TransactionType;
@@ -38,6 +39,7 @@ const createTransaction = (
 const handleTransaction = (state: WalletState, payload: TransactionPayload): WalletState => {
     const { type, coinId, amount, from, to } = payload;
     let newWallets = [...state.wallets];
+    let newCash = [...state.cash];
     let newTransactions = [...state.transactions];
 
     if (type === TransactionType.BUY || type === TransactionType.RECEIVE) {
@@ -52,6 +54,16 @@ const handleTransaction = (state: WalletState, payload: TransactionPayload): Wal
         const walletIndex = newWallets.findIndex(w => w.coinId === coinId);
         if (walletIndex > -1) {
             newWallets = newWallets.map((w, i) => i === walletIndex ? { ...w, balance: w.balance - amount } : w);
+        }
+        newTransactions.unshift(createTransaction(payload));
+    } else if (type === TransactionType.DEPOSIT) {
+        // Handle fiat deposits to cash accounts
+        const fiatId = payload.currency as any; // currency field contains the fiat ID
+        const cashIndex = newCash.findIndex(c => c.fiatId === fiatId);
+        if (cashIndex > -1) {
+            newCash = newCash.map((c, i) => i === cashIndex ? { ...c, balance: c.balance + amount } : c);
+        } else {
+            newCash.push({ fiatId, balance: amount });
         }
         newTransactions.unshift(createTransaction(payload));
     } else if (type === TransactionType.SWAP && from && to) {
@@ -72,7 +84,7 @@ const handleTransaction = (state: WalletState, payload: TransactionPayload): Wal
         newTransactions.unshift(swapInTx, swapOutTx);
     }
 
-    return { ...state, wallets: newWallets, transactions: newTransactions };
+    return { ...state, wallets: newWallets, cash: newCash, transactions: newTransactions };
 };
 
 const handleStake = (state: WalletState, payload: { coinId: CoinID; amount: number; currentPrice?: number }): WalletState => {
