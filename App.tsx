@@ -19,7 +19,8 @@ import Register from './pages/Register';
 import Admin from './pages/Admin';
 import ProtectedRoute from './components/ProtectedRoute';
 import { PricesProvider } from './context/PricesContext';
-import { WalletState } from './types';
+import { WalletState, CoinID } from './types';
+import { usePrices } from './hooks/usePrices';
 
 const App: React.FC = () => {
   return (
@@ -48,6 +49,7 @@ const App: React.FC = () => {
 
 const MainAppLayout: React.FC = () => {
   const { currentUser, updateCurrentUserFinancials } = useAuth();
+  const { getPrice } = usePrices();
 
   const handleStateChange = useCallback((newState: WalletState) => {
     if (currentUser) {
@@ -59,11 +61,35 @@ const MainAppLayout: React.FC = () => {
     return <div>Loading...</div>;
   }
 
-  // Fix transactions with missing USD values
-  const fixedTransactions = currentUser.transactions.map(tx => ({
-    ...tx,
-    usdValue: tx.usdValue ?? (tx.amount * (tx.price || 0))
-  }));
+  // Fix transactions with missing USD values using current live prices
+  const fixedTransactions = currentUser.transactions.map(tx => {
+    if (tx.usdValue && tx.usdValue > 0) {
+      // If transaction already has a valid USD value, keep it
+      return tx;
+    }
+    
+    // Get the coin ID from either coinId field or currency field
+    const coinId = tx.coinId || tx.currency;
+    
+    // Only calculate for valid crypto coins, not fiat currencies
+    if (!coinId || !Object.values(CoinID).includes(coinId as CoinID)) {
+      return {
+        ...tx,
+        usdValue: tx.usdValue || 0
+      };
+    }
+    
+    // Calculate USD value using current live prices
+    const currentPrice = getPrice(coinId as CoinID);
+    const calculatedUsdValue = tx.amount * currentPrice;
+    
+    return {
+      ...tx,
+      usdValue: calculatedUsdValue,
+      price: currentPrice, // Update price to current price for consistency
+      coinId: coinId as CoinID // Ensure coinId is set
+    };
+  });
 
   return (
     <WalletProvider
