@@ -1,0 +1,5 @@
+{
+  "name": "Jet Wallet",
+  "description": "A fully functional but simulated crypto wallet & exchange demo website. It mimics real-world crypto app features for demo and testing purposes, without any real financial or blockchain operations.",
+  "requestFramePermissions": []
+}

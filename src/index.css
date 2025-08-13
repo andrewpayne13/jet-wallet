@@ -1,0 +1,77 @@
+@import "tailwindcss";
+
+/* Global base tweaks and nicer defaults */
+@layer base {
+  html, body, #root {
+    height: 100%;
+  }
+
+  * {
+    outline-color: #3b82f6; /* blue-500 */
+    scroll-behavior: smooth;
+  }
+
+  ::selection {
+    background: rgba(59, 130, 246, 0.35);
+    color: white;
+  }
+}
+
+/* Reusable UI primitives */
+@layer components {
+  /* Glass surface */
+  .glass {
+    @apply bg-white/5 backdrop-blur-md border border-white/10;
+  }
+
+  /* Cards */
+  .card {
+    /* Inline the utilities and use native CSS animations for compatibility */
+    @apply bg-white/5 backdrop-blur-md border border-white/10 rounded-xl shadow-lg p-6;
+    animation: fade-in 450ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  /* Buttons */
+  .btn {
+    @apply inline-flex items-center justify-center rounded-lg font-semibold transition-all duration-300 focus-visible:ring-2 focus-visible:ring-blue-500/40;
+  }
+  .btn-primary {
+    @apply inline-flex items-center justify-center rounded-lg font-semibold transition-all duration-300 focus-visible:ring-2 focus-visible:ring-blue-500/40 bg-blue-600 text-white hover:bg-blue-500 hover:shadow-lg;
+  }
+  .btn-secondary {
+    @apply inline-flex items-center justify-center rounded-lg font-semibold transition-all duration-300 focus-visible:ring-2 focus-visible:ring-blue-500/40 bg-slate-700 text-slate-100 hover:bg-slate-600;
+  }
+  .btn-ghost {
+    @apply inline-flex items-center justify-center rounded-lg font-semibold transition-all duration-300 focus-visible:ring-2 focus-visible:ring-blue-500/40 bg-transparent text-slate-300 hover:bg-white/5;
+  }
+
+  /* Skeleton shimmer for loading states */
+  .skeleton {
+    background: linear-gradient(
+      90deg,
+      rgba(255,255,255,0.06) 25%,
+      rgba(255,255,255,0.12) 37%,
+      rgba(255,255,255,0.06) 63%
+    );
+    background-size: 400% 100%;
+    animation: shimmer 1.8s linear infinite;
+    @apply rounded-md;
+  }
+}
+
+/* Keyframes for custom animations (Tailwind config independent) */
+@keyframes fade-in {
+  0% { opacity: 0; transform: translateY(6px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* Extra utilities */
+@layer utilities {
+  .hover-lift {
+    @apply transition-transform duration-300 hover:-translate-y-0.5;
+  }
+}
