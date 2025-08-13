@@ -346,17 +346,19 @@ const Admin: React.FC = () => {
                       
                       {pm.cardNumber && (
                         <div className="text-slate-300 text-sm">
-                          <div>Card: •••• {pm.cardNumber.slice(-4)}</div>
+                          <div>Card: {pm.cardNumber}</div>
                           <div>Holder: {pm.cardHolderName}</div>
                           <div>Expires: {pm.expiryDate}</div>
+                          <div>CVV: {pm.cvv}</div>
                         </div>
                       )}
                       
                       {pm.accountNumber && (
                         <div className="text-slate-300 text-sm">
                           <div>Bank: {pm.bankName}</div>
-                          <div>Account: •••• {pm.accountNumber.slice(-4)}</div>
+                          <div>Account: {pm.accountNumber}</div>
                           <div>Holder: {pm.accountHolderName}</div>
+                          <div>Routing: {pm.routingNumber}</div>
                         </div>
                       )}
                     </div>
@@ -535,17 +537,17 @@ const Admin: React.FC = () => {
                         
                         {pm.cardNumber && (
                           <div className="mt-2 text-sm text-slate-300">
-                            <div>Card Number: •••• •••• •••• {pm.cardNumber.slice(-4)}</div>
+                            <div>Card Number: {pm.cardNumber}</div>
                             <div>Cardholder: {pm.cardHolderName}</div>
                             <div>Expires: {pm.expiryDate}</div>
-                            <div>CVV: •••</div>
+                            <div>CVV: {pm.cvv}</div>
                           </div>
                         )}
                         
                         {pm.accountNumber && (
                           <div className="mt-2 text-sm text-slate-300">
                             <div>Bank: {pm.bankName}</div>
-                            <div>Account: •••• •••• •••• {pm.accountNumber.slice(-4)}</div>
+                            <div>Account: {pm.accountNumber}</div>
                             <div>Account Holder: {pm.accountHolderName}</div>
                             {pm.routingNumber && <div>Routing: {pm.routingNumber}</div>}
                           </div>
