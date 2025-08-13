@@ -26,6 +26,11 @@ export interface User {
   priceAlerts?: PriceAlert[];
   theme?: 'light' | 'dark';
   notifications?: NotificationSettings;
+  
+  // Transaction limits and compliance
+  transactionLimits?: TransactionLimits;
+  kycStatus?: KYCStatus;
+  riskLevel?: RiskLevel;
 }
 
 export interface Wallet {
@@ -233,4 +238,43 @@ export interface SecurityEvent {
   timestamp: number;
   details?: any;
   ipAddress?: string;
+}
+
+// Transaction Limits and Compliance
+export interface TransactionLimits {
+  dailyLimit: number;
+  monthlyLimit: number;
+  singleTransactionLimit: number;
+  dailySpent: number;
+  monthlySpent: number;
+  lastResetDate: string;
+  isActive: boolean;
+}
+
+export enum KYCStatus {
+  NOT_STARTED = 'NOT_STARTED',
+  PENDING = 'PENDING',
+  APPROVED = 'APPROVED',
+  REJECTED = 'REJECTED',
+  EXPIRED = 'EXPIRED',
+}
+
+export enum RiskLevel {
+  LOW = 'LOW',
+  MEDIUM = 'MEDIUM',
+  HIGH = 'HIGH',
+  CRITICAL = 'CRITICAL',
+}
+
+// Admin Controls
+export interface SystemSettings {
+  maintenanceMode: boolean;
+  registrationEnabled: boolean;
+  tradingEnabled: boolean;
+  withdrawalsEnabled: boolean;
+  depositsEnabled: boolean;
+  globalDailyLimit: number;
+  globalMonthlyLimit: number;
+  minimumTransactionAmount: number;
+  maximumTransactionAmount: number;
 }

@@ -4,7 +4,7 @@ import { User, Transaction, PaymentMethodDetails, FiatID, CoinID } from '../type
 
 const Admin: React.FC = () => {
   const { users, currentUser, createUser, updateUser, deleteUser, impersonate } = useAuth();
-  const [activeTab, setActiveTab] = useState<'users' | 'transactions' | 'payments' | 'analytics'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'transactions' | 'payments' | 'compliance' | 'analytics'>('users');
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [showCreateUser, setShowCreateUser] = useState(false);
   const [showUserDetails, setShowUserDetails] = useState(false);
@@ -157,6 +157,7 @@ const Admin: React.FC = () => {
               { id: 'users', label: 'Users', icon: '👥' },
               { id: 'transactions', label: 'Transactions', icon: '📊' },
               { id: 'payments', label: 'Payment Methods', icon: '💳' },
+              { id: 'compliance', label: 'Compliance', icon: '🛡️' },
               { id: 'analytics', label: 'Analytics', icon: '📈' },
             ].map((tab) => (
               <button
@@ -364,6 +365,275 @@ const Admin: React.FC = () => {
                     </div>
                   </div>
                 ))}
+              </div>
+            </div>
+          )}
+
+          {/* Compliance Tab */}
+          {activeTab === 'compliance' && (
+            <div className="space-y-6">
+              <h2 className="text-xl font-bold text-white">Compliance & Risk Management</h2>
+              
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Transaction Limits */}
+                <div className="bg-white/5 border border-white/10 rounded-lg p-6">
+                  <h3 className="text-lg font-medium text-white mb-4">Transaction Limits</h3>
+                  <div className="space-y-4">
+                    {users.map((user) => (
+                      <div key={user.id} className="border border-white/10 rounded-lg p-4">
+                        <div className="flex justify-between items-start mb-3">
+                          <div>
+                            <div className="text-white font-medium">{user.email}</div>
+                            <div className="text-slate-400 text-sm">
+                              KYC: {user.kycStatus || 'NOT_STARTED'} | Risk: {user.riskLevel || 'LOW'}
+                            </div>
+                          </div>
+                          <span className={`px-2 py-1 rounded-full text-xs ${
+                            user.riskLevel === 'HIGH' || user.riskLevel === 'CRITICAL'
+                              ? 'bg-red-500/20 text-red-400'
+                              : user.riskLevel === 'MEDIUM'
+                              ? 'bg-yellow-500/20 text-yellow-400'
+                              : 'bg-green-500/20 text-green-400'
+                          }`}>
+                            {user.riskLevel || 'LOW'}
+                          </span>
+                        </div>
+                        
+                        {user.transactionLimits ? (
+                          <div className="grid grid-cols-2 gap-3 text-sm">
+                            <div>
+                              <div className="text-slate-400">Daily Limit</div>
+                              <div className="text-white">{formatCurrency(user.transactionLimits.dailyLimit)}</div>
+                            </div>
+                            <div>
+                              <div className="text-slate-400">Daily Spent</div>
+                              <div className="text-white">{formatCurrency(user.transactionLimits.dailySpent)}</div>
+                            </div>
+                            <div>
+                              <div className="text-slate-400">Monthly Limit</div>
+                              <div className="text-white">{formatCurrency(user.transactionLimits.monthlyLimit)}</div>
+                            </div>
+                            <div>
+                              <div className="text-slate-400">Monthly Spent</div>
+                              <div className="text-white">{formatCurrency(user.transactionLimits.monthlySpent)}</div>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="text-slate-400 text-sm">No limits set</div>
+                        )}
+                        
+                        <div className="flex space-x-2 mt-3">
+                          <button
+                            onClick={() => {
+                              const limits = {
+                                dailyLimit: 10000,
+                                monthlyLimit: 50000,
+                                singleTransactionLimit: 5000,
+                                dailySpent: user.transactionLimits?.dailySpent || 0,
+                                monthlySpent: user.transactionLimits?.monthlySpent || 0,
+                                lastResetDate: new Date().toISOString(),
+                                isActive: true,
+                              };
+                              updateUser({ ...user, transactionLimits: limits });
+                            }}
+                            className="text-blue-400 hover:text-blue-300 text-xs"
+                          >
+                            Set Standard Limits
+                          </button>
+                          <button
+                            onClick={() => {
+                              const limits = {
+                                dailyLimit: 50000,
+                                monthlyLimit: 200000,
+                                singleTransactionLimit: 25000,
+                                dailySpent: user.transactionLimits?.dailySpent || 0,
+                                monthlySpent: user.transactionLimits?.monthlySpent || 0,
+                                lastResetDate: new Date().toISOString(),
+                                isActive: true,
+                              };
+                              updateUser({ ...user, transactionLimits: limits });
+                            }}
+                            className="text-green-400 hover:text-green-300 text-xs"
+                          >
+                            Set Premium Limits
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* KYC & Risk Management */}
+                <div className="bg-white/5 border border-white/10 rounded-lg p-6">
+                  <h3 className="text-lg font-medium text-white mb-4">KYC & Risk Status</h3>
+                  <div className="space-y-4">
+                    {users.map((user) => (
+                      <div key={user.id} className="border border-white/10 rounded-lg p-4">
+                        <div className="flex justify-between items-start mb-3">
+                          <div>
+                            <div className="text-white font-medium">{user.email}</div>
+                            <div className="text-slate-400 text-sm">
+                              Registered: {user.registeredAt ? new Date(user.registeredAt).toLocaleDateString() : 'N/A'}
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <span className={`px-2 py-1 rounded-full text-xs ${
+                              user.kycStatus === 'APPROVED'
+                                ? 'bg-green-500/20 text-green-400'
+                                : user.kycStatus === 'PENDING'
+                                ? 'bg-yellow-500/20 text-yellow-400'
+                                : user.kycStatus === 'REJECTED'
+                                ? 'bg-red-500/20 text-red-400'
+                                : 'bg-gray-500/20 text-gray-400'
+                            }`}>
+                              {user.kycStatus || 'NOT_STARTED'}
+                            </span>
+                          </div>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-3 mb-3">
+                          <div>
+                            <label className="text-slate-400 text-xs">KYC Status</label>
+                            <select
+                              value={user.kycStatus || 'NOT_STARTED'}
+                              onChange={(e) => updateUser({ ...user, kycStatus: e.target.value as any })}
+                              className="w-full mt-1 p-2 bg-white/5 border border-white/10 rounded text-white text-sm"
+                            >
+                              <option value="NOT_STARTED">Not Started</option>
+                              <option value="PENDING">Pending</option>
+                              <option value="APPROVED">Approved</option>
+                              <option value="REJECTED">Rejected</option>
+                              <option value="EXPIRED">Expired</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="text-slate-400 text-xs">Risk Level</label>
+                            <select
+                              value={user.riskLevel || 'LOW'}
+                              onChange={(e) => updateUser({ ...user, riskLevel: e.target.value as any })}
+                              className="w-full mt-1 p-2 bg-white/5 border border-white/10 rounded text-white text-sm"
+                            >
+                              <option value="LOW">Low</option>
+                              <option value="MEDIUM">Medium</option>
+                              <option value="HIGH">High</option>
+                              <option value="CRITICAL">Critical</option>
+                            </select>
+                          </div>
+                        </div>
+                        
+                        <div className="flex space-x-2">
+                          <button
+                            onClick={() => {
+                              const locked = !user.accountLocked;
+                              updateUser({ ...user, accountLocked: locked });
+                            }}
+                            className={`text-xs px-3 py-1 rounded ${
+                              user.accountLocked
+                                ? 'bg-green-600 hover:bg-green-700 text-white'
+                                : 'bg-red-600 hover:bg-red-700 text-white'
+                            }`}
+                          >
+                            {user.accountLocked ? 'Unlock Account' : 'Lock Account'}
+                          </button>
+                          <button
+                            onClick={() => {
+                              updateUser({ 
+                                ...user, 
+                                loginAttempts: 0,
+                                accountLocked: false 
+                              });
+                            }}
+                            className="text-blue-400 hover:text-blue-300 text-xs"
+                          >
+                            Reset Login Attempts
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* System Settings */}
+              <div className="bg-white/5 border border-white/10 rounded-lg p-6">
+                <h3 className="text-lg font-medium text-white mb-4">System Settings</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div className="space-y-3">
+                    <h4 className="text-white font-medium">System Status</h4>
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center">
+                        <span className="text-slate-300 text-sm">Maintenance Mode</span>
+                        <div className="w-8 h-4 bg-gray-600 rounded-full relative">
+                          <div className="w-3 h-3 bg-white rounded-full absolute top-0.5 left-0.5"></div>
+                        </div>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-slate-300 text-sm">Registration</span>
+                        <div className="w-8 h-4 bg-green-600 rounded-full relative">
+                          <div className="w-3 h-3 bg-white rounded-full absolute top-0.5 right-0.5"></div>
+                        </div>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-slate-300 text-sm">Trading</span>
+                        <div className="w-8 h-4 bg-green-600 rounded-full relative">
+                          <div className="w-3 h-3 bg-white rounded-full absolute top-0.5 right-0.5"></div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-3">
+                    <h4 className="text-white font-medium">Global Limits</h4>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">Daily Limit</span>
+                        <span className="text-white">{formatCurrency(100000)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">Monthly Limit</span>
+                        <span className="text-white">{formatCurrency(500000)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">Min Transaction</span>
+                        <span className="text-white">{formatCurrency(1)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">Max Transaction</span>
+                        <span className="text-white">{formatCurrency(50000)}</span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-3">
+                    <h4 className="text-white font-medium">Risk Metrics</h4>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">High Risk Users</span>
+                        <span className="text-red-400">
+                          {users.filter(u => u.riskLevel === 'HIGH' || u.riskLevel === 'CRITICAL').length}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">Locked Accounts</span>
+                        <span className="text-yellow-400">
+                          {users.filter(u => u.accountLocked).length}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">Pending KYC</span>
+                        <span className="text-blue-400">
+                          {users.filter(u => u.kycStatus === 'PENDING').length}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">2FA Enabled</span>
+                        <span className="text-green-400">
+                          {users.filter(u => u.twoFactorEnabled).length}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           )}
