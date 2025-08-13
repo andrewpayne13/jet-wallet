@@ -4,7 +4,7 @@ import { useWallet } from '../hooks/useWallet';
 import { FiatID, PaymentMethod, CardType, PaymentMethodDetails, TransactionType } from '../types';
 
 const Deposit: React.FC = () => {
-  const { user, updateUser } = useAuth();
+  const { currentUser, updateUser } = useAuth();
   const { state, dispatch } = useWallet();
   
   const [selectedFiat, setSelectedFiat] = useState<FiatID>(FiatID.USD);
@@ -34,7 +34,7 @@ const Deposit: React.FC = () => {
     swiftCode: '',
   });
 
-  const userPaymentMethods = user?.paymentMethods || [];
+  const userPaymentMethods = currentUser?.paymentMethods || [];
 
   const fiatOptions = [
     { id: FiatID.USD, name: 'US Dollar', symbol: '$' },
@@ -82,12 +82,15 @@ const Deposit: React.FC = () => {
   };
 
   const addPaymentMethod = () => {
-    if (!user) return;
+    if (!currentUser) {
+      return;
+    }
 
     let newMethod: PaymentMethodDetails;
 
     if (paymentMethodType === PaymentMethod.CREDIT_CARD || paymentMethodType === PaymentMethod.DEBIT_CARD) {
       if (!cardForm.cardHolderName || !cardForm.cardNumber || !cardForm.expiryDate || !cardForm.cvv) {
+        alert('Please fill in all required card fields');
         return;
       }
 
@@ -105,6 +108,7 @@ const Deposit: React.FC = () => {
       };
     } else {
       if (!bankForm.accountHolderName || !bankForm.bankName || !bankForm.accountNumber) {
+        alert('Please fill in all required bank fields');
         return;
       }
 
@@ -125,30 +129,35 @@ const Deposit: React.FC = () => {
     }
 
     const updatedUser = {
-      ...user,
+      ...currentUser,
       paymentMethods: [...userPaymentMethods, newMethod],
     };
 
-    updateUser(updatedUser);
-    
-    // Reset forms
-    setCardForm({
-      cardHolderName: '',
-      cardNumber: '',
-      expiryDate: '',
-      cvv: '',
-      cardType: CardType.VISA,
-    });
-    setBankForm({
-      accountHolderName: '',
-      bankName: '',
-      accountNumber: '',
-      routingNumber: '',
-      sortCode: '',
-      iban: '',
-      swiftCode: '',
-    });
-    setShowAddPaymentMethod(false);
+    try {
+      updateUser(updatedUser);
+      
+      // Reset forms
+      setCardForm({
+        cardHolderName: '',
+        cardNumber: '',
+        expiryDate: '',
+        cvv: '',
+        cardType: CardType.VISA,
+      });
+      setBankForm({
+        accountHolderName: '',
+        bankName: '',
+        accountNumber: '',
+        routingNumber: '',
+        sortCode: '',
+        iban: '',
+        swiftCode: '',
+      });
+      setShowAddPaymentMethod(false);
+    } catch (error) {
+      console.error('Error updating user:', error);
+      alert('Failed to add payment method. Please try again.');
+    }
   };
 
   const selectedFiatData = fiatOptions.find(f => f.id === selectedFiat);
