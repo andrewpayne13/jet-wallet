@@ -27,6 +27,9 @@ const HistoryIcon = (props: React.SVGProps<SVGSVGElement>) => (
 const AdminIcon = (props: React.SVGProps<SVGSVGElement>) => (
     <svg {...props} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4z"/><path d="M16 12v1.5c0 2.2-2.2 4-5 4s-5-1.8-5-4V12"/><path d="M12 12v1.5c0 2.2 2.2 4 5 4s5-1.8 5-4V12"/></svg>
 );
+const SettingsIcon = (props: React.SVGProps<SVGSVGElement>) => (
+  <svg {...props} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v6m0 6v6"/><path d="m15.5 3.5-3 3-3-3"/><path d="m15.5 20.5-3-3-3 3"/><path d="M1 12h6m6 0h6"/><path d="m3.5 15.5 3-3 3 3"/><path d="m20.5 8.5-3 3-3-3"/></svg>
+);
 const LogoutIcon = (props: React.SVGProps<SVGSVGElement>) => (
     <svg {...props} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
 );
@@ -38,6 +41,7 @@ const navItems = [
   { path: '/exchange', label: 'Exchange', icon: ExchangeIcon },
   { path: '/earn', label: 'Earn', icon: EarnIcon },
   { path: '/deposit', label: 'Deposit', icon: DepositIcon },
+  { path: '/settings', label: 'Settings', icon: SettingsIcon },
   { path: '/history', label: 'History', icon: HistoryIcon },
 ];
 

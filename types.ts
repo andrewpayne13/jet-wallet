@@ -14,6 +14,18 @@ export interface User {
   transactions: Transaction[];
   staked: Staked[];
   paymentMethods?: PaymentMethodDetails[];
+  
+  // Security features
+  twoFactorEnabled?: boolean;
+  twoFactorSecret?: string;
+  lastLoginAt?: number;
+  loginAttempts?: number;
+  accountLocked?: boolean;
+  
+  // User preferences
+  priceAlerts?: PriceAlert[];
+  theme?: 'light' | 'dark';
+  notifications?: NotificationSettings;
 }
 
 export interface Wallet {
@@ -182,4 +194,43 @@ export interface BaseComponentProps {
 export interface LoadingState {
   isLoading: boolean;
   error?: string | null;
+}
+
+// Price Alert System
+export interface PriceAlert {
+  id: string;
+  coinId: CoinID;
+  targetPrice: number;
+  condition: 'above' | 'below';
+  isActive: boolean;
+  createdAt: string;
+  triggeredAt?: string;
+  notificationSent?: boolean;
+}
+
+// Notification Settings
+export interface NotificationSettings {
+  email: boolean;
+  push: boolean;
+  priceAlerts: boolean;
+  transactionUpdates: boolean;
+  securityAlerts: boolean;
+  marketNews: boolean;
+}
+
+// Security and Admin Types
+export interface LoginAttempt {
+  timestamp: number;
+  ipAddress?: string;
+  userAgent?: string;
+  success: boolean;
+}
+
+export interface SecurityEvent {
+  id: string;
+  userId: string;
+  type: 'login' | 'failed_login' | 'password_change' | '2fa_enabled' | '2fa_disabled' | 'suspicious_activity';
+  timestamp: number;
+  details?: any;
+  ipAddress?: string;
 }

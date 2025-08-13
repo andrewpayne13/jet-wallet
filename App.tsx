@@ -13,6 +13,7 @@ import Exchange from './pages/Exchange';
 import Earn from './pages/Earn';
 import Transactions from './pages/Transactions';
 import Deposit from './pages/Deposit';
+import Settings from './pages/Settings';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Admin from './pages/Admin';
@@ -82,6 +83,7 @@ const MainAppLayout: React.FC = () => {
               <Route path="/exchange" element={<Exchange />} />
               <Route path="/earn" element={<Earn />} />
               <Route path="/deposit" element={<Deposit />} />
+              <Route path="/settings" element={<Settings />} />
               <Route path="/history" element={<Transactions />} />
               <Route path="*" element={<Navigate to="/wallets" replace />} />
             </Routes>
