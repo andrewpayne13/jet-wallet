@@ -47,7 +47,11 @@ const Earn: React.FC = () => {
         setTimeout(() => {
             dispatch({
                 type: actionType === 'stake' ? 'STAKE' : 'UNSTAKE',
-                payload: { coinId: selectedCoinId, amount: numAmount }
+                payload: { 
+                    coinId: selectedCoinId, 
+                    amount: numAmount,
+                    currentPrice: getPrice(selectedCoinId)
+                }
             });
             setIsProcessing(false);
             setAmount('');

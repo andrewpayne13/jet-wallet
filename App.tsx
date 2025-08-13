@@ -59,13 +59,19 @@ const MainAppLayout: React.FC = () => {
     return <div>Loading...</div>;
   }
 
+  // Fix transactions with missing USD values
+  const fixedTransactions = currentUser.transactions.map(tx => ({
+    ...tx,
+    usdValue: tx.usdValue ?? (tx.amount * (tx.price || 0))
+  }));
+
   return (
     <WalletProvider
       key={currentUser.id}
       initialState={{
         wallets: currentUser.wallets,
         cash: currentUser.cash ?? [],
-        transactions: currentUser.transactions,
+        transactions: fixedTransactions,
         staked: currentUser.staked
       }}
       onStateChange={handleStateChange}

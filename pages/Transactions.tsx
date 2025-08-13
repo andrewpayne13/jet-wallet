@@ -76,7 +76,7 @@ const Transactions: React.FC = () => {
                                     <td className={`px-6 py-4 text-right font-mono ${sign === '+' ? 'text-green-400' : 'text-red-400'}`}>
                                         {sign}{tx.amount.toFixed(8)}
                                     </td>
-                                    <td className="px-6 py-4 text-right font-mono">${tx.usdValue.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+                                    <td className="px-6 py-4 text-right font-mono">${(tx.usdValue || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
                                     <td className="px-6 py-4">
                                         <div className="max-w-xs truncate" title={tx.hash}>
                                             <span className="font-semibold text-slate-400">Hash: </span>{tx.hash}
