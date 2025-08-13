@@ -47,7 +47,6 @@ async function fetchFromCoinGecko() {
 
     return prices;
   } catch (error) {
-    console.error('CoinGecko fetch failed:', error);
     throw error;
   }
 }
@@ -87,7 +86,6 @@ async function fetchFromCoinCap() {
 
     return prices;
   } catch (error) {
-    console.error('CoinCap fetch failed:', error);
     throw error;
   }
 }
@@ -110,13 +108,10 @@ export default async function handler(req, res) {
   }
 
   try {
-    console.log('Fetching cryptocurrency prices...');
-    
     // Try CoinGecko first
     try {
       const prices = await fetchFromCoinGecko();
       if (Object.keys(prices).length > 0) {
-        console.log('CoinGecko prices fetched successfully:', prices);
         res.status(200).json({ 
           success: true, 
           data: prices, 
@@ -126,14 +121,13 @@ export default async function handler(req, res) {
         return;
       }
     } catch (error) {
-      console.warn('CoinGecko failed, trying CoinCap...', error.message);
+      // Silent fallback to CoinCap
     }
 
     // Try CoinCap as fallback
     try {
       const prices = await fetchFromCoinCap();
       if (Object.keys(prices).length > 0) {
-        console.log('CoinCap prices fetched successfully:', prices);
         res.status(200).json({ 
           success: true, 
           data: prices, 
@@ -143,18 +137,17 @@ export default async function handler(req, res) {
         return;
       }
     } catch (error) {
-      console.warn('CoinCap also failed:', error.message);
+      // Silent failure
     }
 
     // If both APIs fail, return error (no fallback static prices)
     res.status(503).json({ 
       success: false, 
-      error: 'All price APIs are currently unavailable. Please try again later.',
+      error: 'Service temporarily unavailable',
       timestamp: Date.now()
     });
 
   } catch (error) {
-    console.error('Price API handler error:', error);
     res.status(500).json({ 
       success: false, 
       error: 'Internal server error',

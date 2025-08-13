@@ -11,8 +11,6 @@ interface PriceApiResponse {
 
 // Main function to fetch live cryptocurrency prices via Vercel API
 export async function fetchLivePrices(): Promise<Partial<Record<CoinID, number>>> {
-  console.log('Fetching live cryptocurrency prices via API...');
-  
   try {
     // Use relative URL for Vercel deployment, absolute for development
     const apiUrl = process.env.NODE_ENV === 'development' 
@@ -51,12 +49,9 @@ export async function fetchLivePrices(): Promise<Partial<Record<CoinID, number>>
       }
     });
 
-    console.log(`Live prices fetched successfully from ${result.source}:`, prices);
     return prices;
 
   } catch (error) {
-    console.error('Failed to fetch live prices:', error);
-    
     // Instead of fallback static prices, throw error to let UI handle it
     throw new Error(`Unable to fetch live cryptocurrency prices: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }

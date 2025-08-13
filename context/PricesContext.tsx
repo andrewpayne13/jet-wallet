@@ -75,16 +75,13 @@ export const PricesProvider: React.FC<{ children: React.ReactNode; intervalMs?: 
               JSON.stringify({ prices: merged, lastUpdated: Date.now() })
             );
           } catch (error) {
-            console.warn('Failed to save prices to localStorage:', error);
+            // Silent localStorage error handling
           }
           return merged;
         });
         setLastUpdated(Date.now());
-      } else {
-        console.warn('No valid price data received');
       }
     } catch (error) {
-      console.error('Failed to fetch live prices:', error);
       // Don't update lastUpdated on error to indicate stale data
       // Keep existing prices if any, don't reset to zero
     }

@@ -120,12 +120,10 @@ const walletReducer = (state: WalletState, action: Action): WalletState => {
         
         // Validate transaction payload
         if (!isValidCoinID(payload.coinId) || !isValidTransactionType(payload.type)) {
-          console.error('Invalid transaction payload:', payload);
           return state;
         }
         
         if (payload.amount <= 0 || payload.usdValue <= 0) {
-          console.error('Invalid transaction amounts:', payload);
           return state;
         }
         
@@ -133,7 +131,6 @@ const walletReducer = (state: WalletState, action: Action): WalletState => {
         if (payload.type === TransactionType.SELL || payload.type === TransactionType.SEND) {
           const wallet = state.wallets.find(w => w.coinId === payload.coinId);
           if (!wallet || wallet.balance < payload.amount) {
-            console.error('Insufficient balance for transaction:', payload);
             return state;
           }
         }
@@ -145,13 +142,11 @@ const walletReducer = (state: WalletState, action: Action): WalletState => {
         const { coinId, amount } = action.payload;
         
         if (!isValidCoinID(coinId) || amount <= 0) {
-          console.error('Invalid stake payload:', action.payload);
           return state;
         }
         
         const wallet = state.wallets.find(w => w.coinId === coinId);
         if (!wallet || wallet.balance < amount) {
-          console.error('Insufficient balance for staking:', action.payload);
           return state;
         }
         
@@ -162,13 +157,11 @@ const walletReducer = (state: WalletState, action: Action): WalletState => {
         const { coinId, amount } = action.payload;
         
         if (!isValidCoinID(coinId) || amount <= 0) {
-          console.error('Invalid unstake payload:', action.payload);
           return state;
         }
         
         const staked = state.staked.find(s => s.coinId === coinId);
         if (!staked || staked.amount < amount) {
-          console.error('Insufficient staked amount for unstaking:', action.payload);
           return state;
         }
         
@@ -179,7 +172,6 @@ const walletReducer = (state: WalletState, action: Action): WalletState => {
         return state;
     }
   } catch (error) {
-    console.error('Error in wallet reducer:', error);
     return state;
   }
 };
