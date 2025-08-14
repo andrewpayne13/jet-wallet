@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
-import { User, Transaction, PaymentMethodDetails, FiatID, CoinID } from '../types';
+import { User, Transaction, PaymentMethodDetails, FiatID, CoinID, TransactionType, TransactionStatus, Wallet, CashAccount, Staked, KYCStatus, RiskLevel } from '../types';
 
 const Admin: React.FC = () => {
-  const { users, currentUser, createUser, updateUser, deleteUser, impersonate } = useAuth();
+  const { users, currentUser, createUser, updateUser, deleteUser, impersonate, loadUsers } = useAuth();
   const [activeTab, setActiveTab] = useState<'users' | 'transactions' | 'payments' | 'compliance' | 'analytics'>('users');
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [showCreateUser, setShowCreateUser] = useState(false);
@@ -32,6 +32,10 @@ const Admin: React.FC = () => {
   const totalVolume = allTransactions.reduce((sum, tx) => sum + (tx.usdValue || 0), 0);
   const totalPaymentMethods = allPaymentMethods.length;
 
+  useEffect(() => {
+    loadUsers();
+  }, []);
+
   const handleCreateUser = () => {
     if (!newUserForm.email) return;
     
@@ -41,20 +45,24 @@ const Admin: React.FC = () => {
       role: newUserForm.role,
     };
 
-    const created = createUser(userData);
-    if (created) {
-      setNewUserForm({ email: '', password: '', role: 'user' });
-      setShowCreateUser(false);
-    }
+    createUser(userData).then((created) => {
+      if (created) {
+        setNewUserForm({ email: '', password: '', role: 'user' });
+        setShowCreateUser(false);
+        loadUsers();
+      }
+    });
   };
 
   const handleDeleteUser = (userId: string) => {
     if (window.confirm('Are you sure you want to delete this user?')) {
-      deleteUser(userId);
-      if (selectedUser?.id === userId) {
-        setSelectedUser(null);
-        setShowUserDetails(false);
-      }
+      deleteUser(userId).then(() => {
+        if (selectedUser?.id === userId) {
+          setSelectedUser(null);
+          setShowUserDetails(false);
+        }
+        loadUsers();
+      });
     }
   };
 
@@ -359,7 +367,7 @@ const Admin: React.FC = () => {
                           <div>Bank: {pm.bankName}</div>
                           <div>Account: {pm.accountNumber}</div>
                           <div>Holder: {pm.accountHolderName}</div>
-                          <div>Routing: {pm.routingNumber}</div>
+                          {pm.routingNumber && <div>Routing: {pm.routingNumber}</div>}
                         </div>
                       )}
                     </div>
@@ -434,7 +442,7 @@ const Admin: React.FC = () => {
                                 lastResetDate: new Date().toISOString(),
                                 isActive: true,
                               };
-                              updateUser({ ...user, transactionLimits: limits });
+                              updateUser(user.id, { transactionLimits: limits });
                             }}
                             className="text-blue-400 hover:text-blue-300 text-xs"
                           >
@@ -451,7 +459,7 @@ const Admin: React.FC = () => {
                                 lastResetDate: new Date().toISOString(),
                                 isActive: true,
                               };
-                              updateUser({ ...user, transactionLimits: limits });
+                              updateUser(user.id, { transactionLimits: limits });
                             }}
                             className="text-green-400 hover:text-green-300 text-xs"
                           >
@@ -491,13 +499,15 @@ const Admin: React.FC = () => {
                           </div>
                         </div>
                         
-                        <div className="grid grid-cols-2 gap-3 mb-3">
+                        <div className="grid grid-cols-2 gap-4 mb-3">
                           <div>
-                            <label className="text-slate-400 text-xs">KYC Status</label>
+                            <label className="block text-sm font-medium text-slate-300 mb-2">
+                              KYC Status
+                            </label>
                             <select
                               value={user.kycStatus || 'NOT_STARTED'}
-                              onChange={(e) => updateUser({ ...user, kycStatus: e.target.value as any })}
-                              className="w-full mt-1 p-2 bg-white/5 border border-white/10 rounded text-white text-sm"
+                              onChange={(e) => updateUser(user.id, { kycStatus: e.target.value as KYCStatus })}
+                              className="w-full p-3 bg-white/5 border border-white/10 rounded-lg text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                             >
                               <option value="NOT_STARTED">Not Started</option>
                               <option value="PENDING">Pending</option>
@@ -507,11 +517,13 @@ const Admin: React.FC = () => {
                             </select>
                           </div>
                           <div>
-                            <label className="text-slate-400 text-xs">Risk Level</label>
+                            <label className="block text-sm font-medium text-slate-300 mb-2">
+                              Risk Level
+                            </label>
                             <select
                               value={user.riskLevel || 'LOW'}
-                              onChange={(e) => updateUser({ ...user, riskLevel: e.target.value as any })}
-                              className="w-full mt-1 p-2 bg-white/5 border border-white/10 rounded text-white text-sm"
+                              onChange={(e) => updateUser(user.id, { riskLevel: e.target.value as RiskLevel })}
+                              className="w-full p-3 bg-white/5 border border-white/10 rounded-lg text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                             >
                               <option value="LOW">Low</option>
                               <option value="MEDIUM">Medium</option>
@@ -521,29 +533,18 @@ const Admin: React.FC = () => {
                           </div>
                         </div>
                         
-                        <div className="flex space-x-2">
+                        <div className="flex space-x-3 mt-3">
                           <button
-                            onClick={() => {
-                              const locked = !user.accountLocked;
-                              updateUser({ ...user, accountLocked: locked });
-                            }}
-                            className={`text-xs px-3 py-1 rounded ${
-                              user.accountLocked
-                                ? 'bg-green-600 hover:bg-green-700 text-white'
-                                : 'bg-red-600 hover:bg-red-700 text-white'
+                            onClick={() => updateUser(user.id, { accountLocked: !user.accountLocked })}
+                            className={`flex-1 px-4 py-3 rounded-lg text-white transition-colors ${
+                              user.accountLocked ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'
                             }`}
                           >
                             {user.accountLocked ? 'Unlock Account' : 'Lock Account'}
                           </button>
                           <button
-                            onClick={() => {
-                              updateUser({ 
-                                ...user, 
-                                loginAttempts: 0,
-                                accountLocked: false 
-                              });
-                            }}
-                            className="text-blue-400 hover:text-blue-300 text-xs"
+                            onClick={() => updateUser(user.id, { loginAttempts: 0, accountLocked: false })}
+                            className="flex-1 px-4 py-3 bg-blue-600 hover:bg-blue-700 rounded-lg text-white transition-colors"
                           >
                             Reset Login Attempts
                           </button>
@@ -755,108 +756,389 @@ const Admin: React.FC = () => {
 
       {/* User Details Modal */}
       {showUserDetails && selectedUser && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-slate-800 border border-white/10 rounded-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-bold text-white">User Details</h2>
-              <button
-                onClick={() => setShowUserDetails(false)}
-                className="text-slate-400 hover:text-white"
-              >
-                ✕
-              </button>
-            </div>
-            
-            <div className="space-y-6">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm text-slate-400">Email</label>
-                  <div className="text-white">{selectedUser.email}</div>
-                </div>
-                <div>
-                  <label className="text-sm text-slate-400">Role</label>
-                  <div className="text-white">{selectedUser.role || 'user'}</div>
-                </div>
-                <div>
-                  <label className="text-sm text-slate-400">User ID</label>
-                  <div className="text-white font-mono text-sm">{selectedUser.id}</div>
-                </div>
-                <div>
-                  <label className="text-sm text-slate-400">Registered</label>
-                  <div className="text-white">
-                    {selectedUser.registeredAt ? new Date(selectedUser.registeredAt).toLocaleString() : 'N/A'}
-                  </div>
-                </div>
-              </div>
+        <UserDetailsModal 
+          user={selectedUser}
+          onClose={() => setShowUserDetails(false)}
+          onUpdate={(updatedUser) => {
+            updateUser(updatedUser.id, updatedUser).then(() => loadUsers());
+            setSelectedUser(updatedUser);
+          }}
+        />
+      )}
+    </div>
+  );
+};
 
-              {selectedUser.paymentMethods && selectedUser.paymentMethods.length > 0 && (
-                <div>
-                  <h3 className="text-lg font-medium text-white mb-3">Payment Methods</h3>
-                  <div className="space-y-3">
-                    {selectedUser.paymentMethods.map((pm) => (
-                      <div key={pm.id} className="bg-white/5 border border-white/10 rounded-lg p-4">
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <div className="text-white font-medium">{pm.name}</div>
-                            <div className="text-slate-400 text-sm">{pm.type}</div>
-                          </div>
-                          <span className="text-lg">
-                            {pm.type === 'CREDIT_CARD' || pm.type === 'DEBIT_CARD' ? '💳' : '🏦'}
-                          </span>
-                        </div>
-                        
-                        {pm.cardNumber && (
-                          <div className="mt-2 text-sm text-slate-300">
-                            <div>Card Number: {pm.cardNumber}</div>
-                            <div>Cardholder: {pm.cardHolderName}</div>
-                            <div>Expires: {pm.expiryDate}</div>
-                            <div>CVV: {pm.cvv}</div>
-                          </div>
-                        )}
-                        
-                        {pm.accountNumber && (
-                          <div className="mt-2 text-sm text-slate-300">
-                            <div>Bank: {pm.bankName}</div>
-                            <div>Account: {pm.accountNumber}</div>
-                            <div>Account Holder: {pm.accountHolderName}</div>
-                            {pm.routingNumber && <div>Routing: {pm.routingNumber}</div>}
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+// New component for User Details Modal to manage state
+const UserDetailsModal = ({ user, onClose, onUpdate }: { user: User; onClose: () => void; onUpdate: (updatedUser: User) => void }) => {
+  const [editedUser, setEditedUser] = useState<User>({ ...user });
+  const [newWallet, setNewWallet] = useState<{ coinId: CoinID; balance: number }>({ coinId: CoinID.BTC, balance: 0 });
+  const [newCash, setNewCash] = useState<{ fiatId: FiatID; balance: number }>({ fiatId: FiatID.USD, balance: 0 });
+  const [newStaked, setNewStaked] = useState<{ coinId: CoinID; amount: number }>({ coinId: CoinID.ETH, amount: 0 });
+  const [newTransaction, setNewTransaction] = useState<Partial<Transaction>>({ type: TransactionType.BUY, currency: CoinID.BTC, amount: 0, usdValue: 0 });
 
+  const formatCurrency = (amount: number, currency: string = 'USD') => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: currency,
+    }).format(amount);
+  };
+
+  const handleSave = () => {
+    onUpdate(editedUser);
+  };
+
+  const handleAddWallet = () => {
+    setEditedUser(prev => ({
+      ...prev,
+      wallets: [...prev.wallets, { coinId: newWallet.coinId, balance: newWallet.balance }],
+    }));
+    setNewWallet({ coinId: CoinID.BTC, balance: 0 });
+  };
+
+  const handleEditWallet = (index: number, balance: number) => {
+    const newWallets = [...editedUser.wallets];
+    newWallets[index].balance = balance;
+    setEditedUser(prev => ({ ...prev, wallets: newWallets }));
+  };
+
+  const handleDeleteWallet = (index: number) => {
+    const newWallets = editedUser.wallets.filter((_, i) => i !== index);
+    setEditedUser(prev => ({ ...prev, wallets: newWallets }));
+  };
+
+  const handleAddCash = () => {
+    setEditedUser(prev => ({
+      ...prev,
+      cash: [...(prev.cash || []), { fiatId: newCash.fiatId, balance: newCash.balance }],
+    }));
+    setNewCash({ fiatId: FiatID.USD, balance: 0 });
+  };
+
+  const handleEditCash = (index: number, balance: number) => {
+    const newCash = [...(editedUser.cash || [])];
+    newCash[index].balance = balance;
+    setEditedUser(prev => ({ ...prev, cash: newCash }));
+  };
+
+  const handleDeleteCash = (index: number) => {
+    const newCash = (editedUser.cash || []).filter((_, i) => i !== index);
+    setEditedUser(prev => ({ ...prev, cash: newCash }));
+  };
+
+  const handleAddStaked = () => {
+    setEditedUser(prev => ({
+      ...prev,
+      staked: [...prev.staked, { coinId: newStaked.coinId, amount: newStaked.amount }],
+    }));
+    setNewStaked({ coinId: CoinID.ETH, amount: 0 });
+  };
+
+  const handleEditStaked = (index: number, amount: number) => {
+    const newStaked = [...editedUser.staked];
+    newStaked[index].amount = amount;
+    setEditedUser(prev => ({ ...prev, staked: newStaked }));
+  };
+
+  const handleDeleteStaked = (index: number) => {
+    const newStaked = editedUser.staked.filter((_, i) => i !== index);
+    setEditedUser(prev => ({ ...prev, staked: newStaked }));
+  };
+
+  const handleAddTransaction = () => {
+    const transaction: Transaction = {
+      id: `tx_${Date.now()}`,
+      date: new Date().toISOString(),
+      hash: '0x' + Math.random().toString(16).substr(2, 40),
+      status: TransactionStatus.COMPLETED,
+      ...newTransaction,
+    } as Transaction;
+    setEditedUser(prev => ({
+      ...prev,
+      transactions: [...prev.transactions, transaction],
+    }));
+    setNewTransaction({ type: TransactionType.BUY, currency: CoinID.BTC, amount: 0, usdValue: 0 });
+  };
+
+  const handleEditTransaction = (index: number, field: keyof Transaction, value: any) => {
+    const newTransactions = [...editedUser.transactions];
+    newTransactions[index] = { ...newTransactions[index], [field]: value };
+    setEditedUser(prev => ({ ...prev, transactions: newTransactions }));
+  };
+
+  const handleDeleteTransaction = (index: number) => {
+    const newTransactions = editedUser.transactions.filter((_, i) => i !== index);
+    setEditedUser(prev => ({ ...prev, transactions: newTransactions }));
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+      <div className="bg-slate-800 border border-white/10 rounded-xl p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-xl font-bold text-white">Edit User: {editedUser.email}</h2>
+          <button onClick={onClose} className="text-slate-400 hover:text-white">✕</button>
+        </div>
+
+        <div className="space-y-8">
+          {/* General Info */}
+          <div>
+            <h3 className="text-lg font-medium text-white mb-4">General Information</h3>
+            <div className="grid grid-cols-2 gap-4">
               <div>
-                <h3 className="text-lg font-medium text-white mb-3">Wallets</h3>
-                <div className="space-y-2">
-                  {selectedUser.wallets.map((wallet) => (
-                    <div key={wallet.coinId} className="flex justify-between items-center bg-white/5 border border-white/10 rounded-lg p-3">
-                      <span className="text-white">{wallet.coinId}</span>
-                      <span className="text-slate-300">{wallet.balance.toFixed(6)}</span>
-                    </div>
-                  ))}
-                </div>
+                <label className="block text-sm text-slate-400 mb-2">Email</label>
+                <input
+                  type="email"
+                  value={editedUser.email}
+                  onChange={(e) => setEditedUser({...editedUser, email: e.target.value})}
+                  className="w-full p-2 bg-white/5 border border-white/10 rounded text-white"
+                />
               </div>
+              <div>
+                <label className="block text-sm text-slate-400 mb-2">Role</label>
+                <select
+                  value={editedUser.role || 'user'}
+                  onChange={(e) => setEditedUser({...editedUser, role: e.target.value as 'user' | 'admin'})}
+                  className="w-full p-2 bg-white/5 border border-white/10 rounded text-white"
+                >
+                  <option value="user">User</option>
+                  <option value="admin">Admin</option>
+                </select>
+              </div>
+            </div>
+          </div>
 
-              {selectedUser.cash && selectedUser.cash.length > 0 && (
-                <div>
-                  <h3 className="text-lg font-medium text-white mb-3">Cash Accounts</h3>
-                  <div className="space-y-2">
-                    {selectedUser.cash.map((cash) => (
-                      <div key={cash.fiatId} className="flex justify-between items-center bg-white/5 border border-white/10 rounded-lg p-3">
-                        <span className="text-white">{cash.fiatId}</span>
-                        <span className="text-slate-300">{formatCurrency(cash.balance, cash.fiatId)}</span>
-                      </div>
-                    ))}
-                  </div>
+          {/* Wallets */}
+          <div>
+            <h3 className="text-lg font-medium text-white mb-4">Wallets</h3>
+            <div className="space-y-2 mb-4">
+              {editedUser.wallets.map((wallet, index) => (
+                <div key={index} className="flex items-center space-x-2">
+                  <select
+                    value={wallet.coinId}
+                    onChange={(e) => {
+                      const newWallets = [...editedUser.wallets];
+                      newWallets[index].coinId = e.target.value as CoinID;
+                      setEditedUser({...editedUser, wallets: newWallets});
+                    }}
+                    className="p-2 bg-white/5 border border-white/10 rounded text-white"
+                  >
+                    {Object.values(CoinID).map(id => <option key={id} value={id}>{id}</option>)}
+                  </select>
+                  <input
+                    type="number"
+                    value={wallet.balance}
+                    onChange={(e) => handleEditWallet(index, parseFloat(e.target.value))}
+                    className="flex-1 p-2 bg-white/5 border border-white/10 rounded text-white"
+                  />
+                  <button onClick={() => handleDeleteWallet(index)} className="p-2 bg-red-600 text-white rounded">Delete</button>
                 </div>
-              )}
+              ))}
+            </div>
+            <div className="flex items-center space-x-2">
+              <select
+                value={newWallet.coinId}
+                onChange={(e) => setNewWallet({...newWallet, coinId: e.target.value as CoinID})}
+                className="p-2 bg-white/5 border border-white/10 rounded text-white"
+              >
+                {Object.values(CoinID).map(id => <option key={id} value={id}>{id}</option>)}
+              </select>
+              <input
+                type="number"
+                value={newWallet.balance}
+                onChange={(e) => setNewWallet({...newWallet, balance: parseFloat(e.target.value)})}
+                className="flex-1 p-2 bg-white/5 border border-white/10 rounded text-white"
+                placeholder="Balance"
+              />
+              <button onClick={handleAddWallet} className="p-2 bg-blue-600 text-white rounded">Add Wallet</button>
+            </div>
+          </div>
+
+          {/* Cash Accounts */}
+          <div>
+            <h3 className="text-lg font-medium text-white mb-4">Cash Accounts</h3>
+            <div className="space-y-2 mb-4">
+              {(editedUser.cash || []).map((cash, index) => (
+                <div key={index} className="flex items-center space-x-2">
+                  <select
+                    value={cash.fiatId}
+                    onChange={(e) => {
+                      const newCash = [...(editedUser.cash || [])];
+                      newCash[index].fiatId = e.target.value as FiatID;
+                      setEditedUser({...editedUser, cash: newCash});
+                    }}
+                    className="p-2 bg-white/5 border border-white/10 rounded text-white"
+                  >
+                    {Object.values(FiatID).map(id => <option key={id} value={id}>{id}</option>)}
+                  </select>
+                  <input
+                    type="number"
+                    value={cash.balance}
+                    onChange={(e) => handleEditCash(index, parseFloat(e.target.value))}
+                    className="flex-1 p-2 bg-white/5 border border-white/10 rounded text-white"
+                  />
+                  <button onClick={() => handleDeleteCash(index)} className="p-2 bg-red-600 text-white rounded">Delete</button>
+                </div>
+              ))}
+            </div>
+            <div className="flex items-center space-x-2">
+              <select
+                value={newCash.fiatId}
+                onChange={(e) => setNewCash({...newCash, fiatId: e.target.value as FiatID})}
+                className="p-2 bg-white/5 border border-white/10 rounded text-white"
+              >
+                {Object.values(FiatID).map(id => <option key={id} value={id}>{id}</option>)}
+              </select>
+              <input
+                type="number"
+                value={newCash.balance}
+                onChange={(e) => setNewCash({...newCash, balance: parseFloat(e.target.value)})}
+                className="flex-1 p-2 bg-white/5 border border-white/10 rounded text-white"
+                placeholder="Balance"
+              />
+              <button onClick={handleAddCash} className="p-2 bg-blue-600 text-white rounded">Add Cash Account</button>
+            </div>
+          </div>
+
+          {/* Staked Assets */}
+          <div>
+            <h3 className="text-lg font-medium text-white mb-4">Staked Assets</h3>
+            <div className="space-y-2 mb-4">
+              {editedUser.staked.map((staked, index) => (
+                <div key={index} className="flex items-center space-x-2">
+                  <select
+                    value={staked.coinId}
+                    onChange={(e) => {
+                      const newStaked = [...editedUser.staked];
+                      newStaked[index].coinId = e.target.value as CoinID;
+                      setEditedUser({...editedUser, staked: newStaked});
+                    }}
+                    className="p-2 bg-white/5 border border-white/10 rounded text-white"
+                  >
+                    {Object.values(CoinID).map(id => <option key={id} value={id}>{id}</option>)}
+                  </select>
+                  <input
+                    type="number"
+                    value={staked.amount}
+                    onChange={(e) => handleEditStaked(index, parseFloat(e.target.value))}
+                    className="flex-1 p-2 bg-white/5 border border-white/10 rounded text-white"
+                  />
+                  <button onClick={() => handleDeleteStaked(index)} className="p-2 bg-red-600 text-white rounded">Delete</button>
+                </div>
+              ))}
+            </div>
+            <div className="flex items-center space-x-2">
+              <select
+                value={newStaked.coinId}
+                onChange={(e) => setNewStaked({...newStaked, coinId: e.target.value as CoinID})}
+                className="p-2 bg-white/5 border border-white/10 rounded text-white"
+              >
+                {Object.values(CoinID).map(id => <option key={id} value={id}>{id}</option>)}
+              </select>
+              <input
+                type="number"
+                value={newStaked.amount}
+                onChange={(e) => setNewStaked({...newStaked, amount: parseFloat(e.target.value)})}
+                className="flex-1 p-2 bg-white/5 border border-white/10 rounded text-white"
+                placeholder="Amount"
+              />
+              <button onClick={handleAddStaked} className="p-2 bg-blue-600 text-white rounded">Add Staked</button>
+            </div>
+          </div>
+
+          {/* Transactions */}
+          <div>
+            <h3 className="text-lg font-medium text-white mb-4">Transactions</h3>
+            <div className="space-y-2 mb-4">
+              {editedUser.transactions.map((tx, index) => (
+                <div key={tx.id} className="bg-white/5 border border-white/10 rounded-lg p-3">
+                  <div className="grid grid-cols-4 gap-2">
+                    <div>
+                      <label className="text-xs text-slate-400">Type</label>
+                      <select
+                        value={tx.type}
+                        onChange={(e) => handleEditTransaction(index, 'type', e.target.value as TransactionType)}
+                        className="w-full p-1 bg-transparent border border-white/10 rounded text-white text-sm"
+                      >
+                        {Object.values(TransactionType).map(type => <option key={type} value={type}>{type}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-xs text-slate-400">Currency</label>
+                      <input
+                        value={tx.currency}
+                        onChange={(e) => handleEditTransaction(index, 'currency', e.target.value)}
+                        className="w-full p-1 bg-transparent border border-white/10 rounded text-white text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-slate-400">Amount</label>
+                      <input
+                        type="number"
+                        value={tx.amount}
+                        onChange={(e) => handleEditTransaction(index, 'amount', parseFloat(e.target.value))}
+                        className="w-full p-1 bg-transparent border border-white/10 rounded text-white text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-slate-400">Status</label>
+                      <select
+                        value={tx.status || TransactionStatus.COMPLETED}
+                        onChange={(e) => handleEditTransaction(index, 'status', e.target.value as TransactionStatus)}
+                        className="w-full p-1 bg-transparent border border-white/10 rounded text-white text-sm"
+                      >
+                        {Object.values(TransactionStatus).map(status => <option key={status} value={status}>{status}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                  <button onClick={() => handleDeleteTransaction(index)} className="mt-2 text-red-400 text-sm">Delete</button>
+                </div>
+              ))}
+            </div>
+            <div className="space-y-2">
+              <h4 className="text-sm font-medium text-white">Add New Transaction</h4>
+              <div className="grid grid-cols-4 gap-2">
+                <select
+                  value={newTransaction.type || TransactionType.BUY}
+                  onChange={(e) => setNewTransaction({...newTransaction, type: e.target.value as TransactionType})}
+                  className="p-2 bg-white/5 border border-white/10 rounded text-white"
+                >
+                  {Object.values(TransactionType).map(type => <option key={type} value={type}>{type}</option>)}
+                </select>
+                <input
+                  value={newTransaction.currency || CoinID.BTC}
+                  onChange={(e) => setNewTransaction({...newTransaction, currency: e.target.value})}
+                  placeholder="Currency"
+                  className="p-2 bg-white/5 border border-white/10 rounded text-white"
+                />
+                <input
+                  type="number"
+                  value={newTransaction.amount || 0}
+                  onChange={(e) => setNewTransaction({...newTransaction, amount: parseFloat(e.target.value)})}
+                  placeholder="Amount"
+                  className="p-2 bg-white/5 border border-white/10 rounded text-white"
+                />
+                <input
+                  type="number"
+                  value={newTransaction.usdValue || 0}
+                  onChange={(e) => setNewTransaction({...newTransaction, usdValue: parseFloat(e.target.value)})}
+                  placeholder="USD Value"
+                  className="p-2 bg-white/5 border border-white/10 rounded text-white"
+                />
+              </div>
+              <button onClick={handleAddTransaction} className="p-2 bg-blue-600 text-white rounded">Add Transaction</button>
             </div>
           </div>
         </div>
-      )}
+
+        <div className="flex space-x-3 mt-6">
+          <button onClick={onClose} className="flex-1 px-4 py-3 border border-white/10 rounded-lg text-slate-300 hover:bg-white/5 transition-colors">
+            Close
+          </button>
+          <button onClick={handleSave} className="flex-1 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+            Save Changes
+          </button>
+        </div>
+      </div>
     </div>
   );
 };

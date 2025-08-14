@@ -1,12 +1,16 @@
-import React, { createContext, useReducer, ReactNode, useEffect, useRef, useCallback } from 'react';
-import { Wallet, Transaction, Staked, WalletState, CoinID, TransactionType, TransactionStatus, isValidCoinID, isValidTransactionType } from '../types';
+import React, { createContext, useState, useEffect, ReactNode } from 'react';
+import { Wallet, Transaction, Staked, WalletState, CoinID, TransactionType, TransactionStatus, isValidCoinID, isValidTransactionType, FiatID } from '../types';
 import { COINS } from '../constants';
+import { db } from '../firebase';
+import { doc, updateDoc, onSnapshot, arrayUnion } from 'firebase/firestore';
+import { useAuth } from '../hooks/useAuth';
 
 // --- Action Types ---
 type Action =
   | { type: 'SIMULATE_TRANSACTION'; payload: TransactionPayload }
-  | { type: 'STAKE'; payload: { coinId: CoinID; amount: number } }
-  | { type: 'UNSTAKE'; payload: { coinId: CoinID; amount: number } };
+  | { type: 'STAKE'; payload: { coinId: CoinID; amount: number; currentPrice?: number } }
+  | { type: 'UNSTAKE'; payload: { coinId: CoinID; amount: number; currentPrice?: number } }
+  | { type: 'WITHDRAW'; payload: { type: 'crypto' | 'fiat'; coinId?: CoinID; fiatId?: FiatID; amount: number; address?: string; paymentMethodId?: string; usdValue?: number } };
 
 // --- Helper Types ---
 type TransactionPayload = Omit<Transaction, 'id' | 'date' | 'hash' | 'status' | 'price'> & {
@@ -23,200 +27,246 @@ type TransactionPayload = Omit<Transaction, 'id' | 'date' | 'hash' | 'status' | 
 const generateHash = () => `0x${[...Array(64)].map(() => Math.floor(Math.random() * 16).toString(16)).join('')}`;
 
 const createTransaction = (
-    payload: Partial<TransactionPayload> & { coinId: CoinID; amount: number; usdValue: number; type: TransactionType, status?: TransactionStatus }
+  payload: { coinId?: CoinID | FiatID; amount: number; usdValue: number; type: TransactionType; status?: TransactionStatus; to?: string; currency?: string }
 ): Transaction => ({
-    id: `tx_${Date.now()}_${Math.random()}`,
-    date: new Date().toISOString(),
-    hash: generateHash(),
-    status: TransactionStatus.COMPLETED,
-    currency: payload.coinId,
-    // Use the price implied by the caller's usdValue/amount so we capture live price at time of tx.
-    price: payload.amount ? payload.usdValue / payload.amount : 0,
-    ...payload,
+  id: `tx_${Date.now()}_${Math.random()}`,
+  date: new Date().toISOString(),
+  hash: generateHash(),
+  status: payload.status || TransactionStatus.COMPLETED,
+  currency: payload.currency ?? (payload.coinId ? payload.coinId : FiatID.USD),
+  amount: payload.amount,
+  price: payload.amount ? payload.usdValue / payload.amount : 0,
+  usdValue: payload.usdValue,
+  type: payload.type,
+  to: payload.to,
 });
-
-// --- Reducer Logic ---
-const handleTransaction = (state: WalletState, payload: TransactionPayload): WalletState => {
-    const { type, coinId, amount, from, to } = payload;
-    let newWallets = [...state.wallets];
-    let newCash = [...state.cash];
-    let newTransactions = [...state.transactions];
-
-    if (type === TransactionType.BUY || type === TransactionType.RECEIVE) {
-        const walletIndex = newWallets.findIndex(w => w.coinId === coinId);
-        if (walletIndex > -1) {
-            newWallets = newWallets.map((w, i) => i === walletIndex ? { ...w, balance: w.balance + amount } : w);
-        } else {
-            newWallets.push({ coinId, balance: amount });
-        }
-        newTransactions.unshift(createTransaction(payload));
-    } else if (type === TransactionType.SELL || type === TransactionType.SEND) {
-        const walletIndex = newWallets.findIndex(w => w.coinId === coinId);
-        if (walletIndex > -1) {
-            newWallets = newWallets.map((w, i) => i === walletIndex ? { ...w, balance: w.balance - amount } : w);
-        }
-        newTransactions.unshift(createTransaction(payload));
-    } else if (type === TransactionType.DEPOSIT) {
-        // Handle fiat deposits to cash accounts
-        const fiatId = payload.currency as any; // currency field contains the fiat ID
-        const cashIndex = newCash.findIndex(c => c.fiatId === fiatId);
-        if (cashIndex > -1) {
-            newCash = newCash.map((c, i) => i === cashIndex ? { ...c, balance: c.balance + amount } : c);
-        } else {
-            newCash.push({ fiatId, balance: amount });
-        }
-        newTransactions.unshift(createTransaction(payload));
-    } else if (type === TransactionType.SWAP && from && to) {
-        const fromWalletIndex = newWallets.findIndex(w => w.coinId === from.coinId);
-        const toWalletIndex = newWallets.findIndex(w => w.coinId === to.coinId);
-
-        if (fromWalletIndex > -1) {
-            newWallets = newWallets.map((w, i) => i === fromWalletIndex ? { ...w, balance: w.balance - from.amount } : w);
-        }
-        if (toWalletIndex > -1) {
-            newWallets = newWallets.map((w, i) => i === toWalletIndex ? { ...w, balance: w.balance + to.amount } : w);
-        } else {
-            newWallets.push({ coinId: to.coinId, balance: to.amount });
-        }
-
-        const swapOutTx = createTransaction({ ...payload, type: TransactionType.SWAP, coinId: from.coinId, amount: from.amount, usdValue: from.usdValue, from: 'Self', to: 'Exchange' });
-        const swapInTx = createTransaction({ ...payload, type: TransactionType.SWAP, coinId: to.coinId, amount: to.amount, usdValue: to.usdValue, from: 'Exchange', to: 'Self' });
-        newTransactions.unshift(swapInTx, swapOutTx);
-    }
-
-    return { ...state, wallets: newWallets, cash: newCash, transactions: newTransactions };
-};
-
-const handleStake = (state: WalletState, payload: { coinId: CoinID; amount: number; currentPrice?: number }): WalletState => {
-    const { coinId, amount, currentPrice = 0 } = payload;
-    const newWallets = state.wallets.map(w => w.coinId === coinId ? { ...w, balance: w.balance - amount } : w);
-    
-    const newStaked = [...state.staked];
-    const stakeIndex = newStaked.findIndex(s => s.coinId === coinId);
-    if (stakeIndex > -1) {
-        newStaked[stakeIndex] = { ...newStaked[stakeIndex], amount: newStaked[stakeIndex].amount + amount };
-    } else {
-        newStaked.push({ coinId, amount });
-    }
-
-    const transaction = createTransaction({
-        type: TransactionType.STAKE,
-        coinId,
-        amount,
-        usdValue: currentPrice * amount,
-    });
-
-    return { ...state, wallets: newWallets, staked: newStaked, transactions: [transaction, ...state.transactions] };
-};
-
-const handleUnstake = (state: WalletState, payload: { coinId: CoinID; amount: number; currentPrice?: number }): WalletState => {
-    const { coinId, amount, currentPrice = 0 } = payload;
-    const newWallets = state.wallets.map(w => w.coinId === coinId ? { ...w, balance: w.balance + amount } : w);
-    const newStaked = state.staked.map(s => s.coinId === coinId ? { ...s, amount: s.amount - amount } : s).filter(s => s.amount > 0);
-    
-    const transaction = createTransaction({
-        type: TransactionType.UNSTAKE,
-        coinId,
-        amount,
-        usdValue: currentPrice * amount,
-    });
-
-    return { ...state, wallets: newWallets, staked: newStaked, transactions: [transaction, ...state.transactions] };
-};
-
-const walletReducer = (state: WalletState, action: Action): WalletState => {
-  try {
-    switch (action.type) {
-      case 'SIMULATE_TRANSACTION': {
-        const { payload } = action;
-        
-        // Validate transaction payload
-        if (!isValidCoinID(payload.coinId) || !isValidTransactionType(payload.type)) {
-          return state;
-        }
-        
-        if (payload.amount <= 0 || payload.usdValue <= 0) {
-          return state;
-        }
-        
-        // Check if user has sufficient balance for sell/send operations
-        if (payload.type === TransactionType.SELL || payload.type === TransactionType.SEND) {
-          const wallet = state.wallets.find(w => w.coinId === payload.coinId);
-          if (!wallet || wallet.balance < payload.amount) {
-            return state;
-          }
-        }
-        
-        return handleTransaction(state, payload);
-      }
-      
-      case 'STAKE': {
-        const { coinId, amount } = action.payload;
-        
-        if (!isValidCoinID(coinId) || amount <= 0) {
-          return state;
-        }
-        
-        const wallet = state.wallets.find(w => w.coinId === coinId);
-        if (!wallet || wallet.balance < amount) {
-          return state;
-        }
-        
-        return handleStake(state, action.payload);
-      }
-      
-      case 'UNSTAKE': {
-        const { coinId, amount } = action.payload;
-        
-        if (!isValidCoinID(coinId) || amount <= 0) {
-          return state;
-        }
-        
-        const staked = state.staked.find(s => s.coinId === coinId);
-        if (!staked || staked.amount < amount) {
-          return state;
-        }
-        
-        return handleUnstake(state, action.payload);
-      }
-      
-      default:
-        return state;
-    }
-  } catch (error) {
-    return state;
-  }
-};
 
 // --- Context and Provider ---
 interface WalletContextType {
-    state: WalletState;
-    dispatch: React.Dispatch<Action>;
+  state: WalletState;
+  dispatch: (action: Action) => Promise<void>;
 }
 
 export const WalletContext = createContext<WalletContextType>({
   state: { wallets: [], cash: [], transactions: [], staked: [] },
-  dispatch: () => null,
+  dispatch: async () => {},
 });
 
-interface WalletProviderProps {
-    children: ReactNode;
-    initialState: WalletState;
-    onStateChange: (newState: WalletState) => void;
-}
-
-export const WalletProvider: React.FC<WalletProviderProps> = ({ children, initialState, onStateChange }) => {
-  const [state, dispatch] = useReducer(walletReducer, initialState);
-
-  // Avoid infinite update loops: keep a stable ref to onStateChange and trigger only on state changes.
-  const onStateChangeRef = useRef(onStateChange);
-  useEffect(() => {
-    onStateChangeRef.current = onStateChange;
-  }, [onStateChange]);
+export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+  const { currentUser } = useAuth();
+  const [state, setState] = useState<WalletState>({
+    wallets: [],
+    cash: [],
+    transactions: [],
+    staked: [],
+  });
 
   useEffect(() => {
-    onStateChangeRef.current(state);
-  }, [state]);
+    if (currentUser) {
+      const userRef = doc(db, 'users', currentUser.id);
+      const unsubscribe = onSnapshot(userRef, (docSnap) => {
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          setState({
+            wallets: data.wallets || [],
+            cash: data.cash || [],
+            transactions: data.transactions || [],
+            staked: data.staked || [],
+          });
+        }
+      });
+      return () => unsubscribe();
+    }
+  }, [currentUser]);
+
+  const dispatch = async (action: Action) => {
+    if (!currentUser) return;
+
+    const userRef = doc(db, 'users', currentUser.id);
+
+    switch (action.type) {
+      case 'SIMULATE_TRANSACTION': {
+        const { payload } = action;
+        if (!isValidCoinID(payload.coinId) || !isValidTransactionType(payload.type)) return;
+        if (payload.amount <= 0 || payload.usdValue <= 0) return;
+
+        if (payload.type === TransactionType.SELL || payload.type === TransactionType.SEND) {
+          const wallet = state.wallets.find(w => w.coinId === payload.coinId);
+          if (!wallet || wallet.balance < payload.amount) return;
+        }
+
+        const newTransaction = createTransaction({
+          coinId: payload.coinId,
+          amount: payload.amount,
+          usdValue: payload.usdValue,
+          type: payload.type,
+          currency: payload.currency,
+        });
+
+        await updateDoc(userRef, {
+          transactions: arrayUnion(newTransaction),
+        });
+
+        // Update balances
+        if (payload.type === TransactionType.BUY || payload.type === TransactionType.RECEIVE) {
+          const existingWallet = state.wallets.find(w => w.coinId === payload.coinId);
+          let newWallets = [...state.wallets];
+          if (existingWallet) {
+            newWallets = newWallets.map(w => 
+              w.coinId === payload.coinId 
+                ? { ...w, balance: w.balance + payload.amount }
+                : w
+            );
+          } else {
+            newWallets.push({ coinId: payload.coinId, balance: payload.amount });
+          }
+          await updateDoc(userRef, { wallets: newWallets });
+        } else if (payload.type === TransactionType.SELL || payload.type === TransactionType.SEND) {
+          const newWallets = state.wallets.map(w => 
+            w.coinId === payload.coinId 
+              ? { ...w, balance: w.balance - payload.amount }
+              : w
+          ).filter(w => w.balance > 0);
+          await updateDoc(userRef, { wallets: newWallets });
+        } else if (payload.type === TransactionType.DEPOSIT) {
+          const fiatId = payload.currency as FiatID;
+          const existingCash = state.cash.find(c => c.fiatId === fiatId);
+          let newCash = [...state.cash];
+          if (existingCash) {
+            newCash = newCash.map(c => 
+              c.fiatId === fiatId 
+                ? { ...c, balance: c.balance + payload.amount }
+                : c
+            );
+          } else {
+            newCash.push({ fiatId, balance: payload.amount });
+          }
+          await updateDoc(userRef, { cash: newCash });
+        } else if (payload.type === TransactionType.SWAP && payload.from && payload.to) {
+          let newWallets = [...state.wallets];
+          const fromIndex = newWallets.findIndex(w => w.coinId === payload.from.coinId);
+          if (fromIndex > -1) {
+            newWallets[fromIndex].balance -= payload.from.amount;
+            if (newWallets[fromIndex].balance <= 0) newWallets.splice(fromIndex, 1);
+          }
+          const toIndex = newWallets.findIndex(w => w.coinId === payload.to.coinId);
+          if (toIndex > -1) {
+            newWallets[toIndex].balance += payload.to.amount;
+          } else {
+            newWallets.push({ coinId: payload.to.coinId, balance: payload.to.amount });
+          }
+          await updateDoc(userRef, { wallets: newWallets });
+        }
+        break;
+      }
+
+      case 'STAKE': {
+        const { coinId, amount, currentPrice = 0 } = action.payload;
+        if (!isValidCoinID(coinId) || amount <= 0) return;
+        const wallet = state.wallets.find(w => w.coinId === coinId);
+        if (!wallet || wallet.balance < amount) return;
+
+        const newTransaction = createTransaction({
+          coinId,
+          amount,
+          usdValue: currentPrice * amount,
+          type: TransactionType.STAKE,
+        });
+
+        const newWallets = state.wallets.map(w => 
+          w.coinId === coinId ? { ...w, balance: w.balance - amount } : w
+        ).filter(w => w.balance > 0);
+
+        let newStaked = [...state.staked];
+        const stakeIndex = newStaked.findIndex(s => s.coinId === coinId);
+        if (stakeIndex > -1) {
+          newStaked[stakeIndex].amount += amount;
+        } else {
+          newStaked.push({ coinId, amount });
+        }
+
+        await updateDoc(userRef, {
+          transactions: arrayUnion(newTransaction),
+          wallets: newWallets,
+          staked: newStaked,
+        });
+        break;
+      }
+
+      case 'UNSTAKE': {
+        const { coinId, amount, currentPrice = 0 } = action.payload;
+        if (!isValidCoinID(coinId) || amount <= 0) return;
+        const stakedAsset = state.staked.find(s => s.coinId === coinId);
+        if (!stakedAsset || stakedAsset.amount < amount) return;
+
+        const newTransaction = createTransaction({
+          coinId,
+          amount,
+          usdValue: currentPrice * amount,
+          type: TransactionType.UNSTAKE,
+        });
+
+        const newStaked = state.staked.map(s => 
+          s.coinId === coinId ? { ...s, amount: s.amount - amount } : s
+        ).filter(s => s.amount > 0);
+
+        let newWallets = [...state.wallets];
+        const walletIndex = newWallets.findIndex(w => w.coinId === coinId);
+        if (walletIndex > -1) {
+          newWallets[walletIndex].balance += amount;
+        } else {
+          newWallets.push({ coinId, balance: amount });
+        }
+
+        await updateDoc(userRef, {
+          transactions: arrayUnion(newTransaction),
+          staked: newStaked,
+          wallets: newWallets,
+        });
+        break;
+      }
+
+      case 'WITHDRAW': {
+        const { type: withdrawType, coinId, fiatId, amount, address, paymentMethodId, usdValue = 0 } = action.payload;
+        if (amount <= 0) return;
+
+        const newTransaction = createTransaction({
+          coinId: coinId || fiatId,
+          amount,
+          usdValue,
+          type: TransactionType.WITHDRAW,
+          status: TransactionStatus.PENDING,
+          to: address || paymentMethodId,
+          currency: coinId ? coinId : fiatId,
+        });
+
+        await updateDoc(userRef, {
+          transactions: arrayUnion(newTransaction),
+        });
+
+        // Deduct balance
+        if (withdrawType === 'crypto' && coinId) {
+          if (!isValidCoinID(coinId)) return;
+          const wallet = state.wallets.find(w => w.coinId === coinId);
+          if (!wallet || wallet.balance < amount) return;
+
+          const newWallets = state.wallets.map(w => 
+            w.coinId === coinId ? { ...w, balance: w.balance - amount } : w
+          ).filter(w => w.balance > 0);
+          await updateDoc(userRef, { wallets: newWallets });
+        } else if (withdrawType === 'fiat' && fiatId) {
+          const cash = state.cash.find(c => c.fiatId === fiatId);
+          if (!cash || cash.balance < amount) return;
+
+          const newCash = state.cash.map(c => 
+            c.fiatId === fiatId ? { ...c, balance: c.balance - amount } : c
+          ).filter(c => c.balance > 0);
+          await updateDoc(userRef, { cash: newCash });
+        }
+        break;
+      }
+    }
+  };
 
   return (
     <WalletContext.Provider value={{ state, dispatch }}>

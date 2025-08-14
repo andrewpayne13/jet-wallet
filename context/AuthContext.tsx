@@ -1,25 +1,29 @@
-import React, { createContext, useReducer, ReactNode, useEffect } from 'react';
+import React, { createContext, useState, useEffect, ReactNode, useReducer } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { User, WalletState, isValidEmail } from '../types';
+import { User as AppUser, WalletState, isValidEmail, Transaction, Wallet, Staked, CashAccount } from '../types';
+import { auth, db } from '../firebase';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, UserCredential } from 'firebase/auth';
+import { doc, setDoc, getDoc, updateDoc, deleteDoc, collection, getDocs } from 'firebase/firestore';
 
 interface AuthState {
-  users: Record<string, User>;
-  currentUser: User | null;
+  currentUser: AppUser | null;
+  users: AppUser[];
 }
 
 type Action =
-  | { type: 'LOGIN'; payload: User }
+  | { type: 'LOGIN'; payload: AppUser }
   | { type: 'LOGOUT' }
-  | { type: 'REGISTER'; payload: User }
+  | { type: 'REGISTER'; payload: AppUser }
   | { type: 'UPDATE_USER_FINANCIALS'; payload: { userId: string; data: WalletState } }
   | { type: 'DELETE_USER'; payload: { userId: string } }
-  | { type: 'UPDATE_USER'; payload: { userId: string; patch: Partial<User> } }
-  | { type: 'CREATE_USER'; payload: User }
-  | { type: 'IMPERSONATE'; payload: { userId: string } };
+  | { type: 'UPDATE_USER'; payload: { userId: string; patch: Partial<AppUser> } }
+  | { type: 'CREATE_USER'; payload: AppUser }
+  | { type: 'IMPERSONATE'; payload: { userId: string } }
+  | { type: 'LOAD_USERS'; payload: AppUser[] };
 
 const initialState: AuthState = {
-  users: {},
   currentUser: null,
+  users: [],
 };
 
 const authReducer = (state: AuthState, action: Action): AuthState => {
@@ -31,25 +35,21 @@ const authReducer = (state: AuthState, action: Action): AuthState => {
     case 'REGISTER':
       return {
         ...state,
-        users: { ...state.users, [action.payload.id]: action.payload },
+        users: [...state.users, action.payload],
         currentUser: action.payload,
       };
     case 'UPDATE_USER_FINANCIALS': {
       const { userId, data } = action.payload;
-      const updatedUsers = { ...state.users };
-      if (updatedUsers[userId]) {
-        updatedUsers[userId] = { ...updatedUsers[userId], ...data };
-      }
+      const updatedUsers = state.users.map(u => u.id === userId ? { ...u, ...data } : u);
       return {
         ...state,
         users: updatedUsers,
-        currentUser: state.currentUser?.id === userId ? updatedUsers[userId] : state.currentUser,
+        currentUser: state.currentUser?.id === userId ? { ...state.currentUser, ...data } : state.currentUser,
       };
     }
     case 'DELETE_USER': {
       const { userId } = action.payload;
-      const newUsers = { ...state.users };
-      delete newUsers[userId];
+      const newUsers = state.users.filter(u => u.id !== userId);
       return {
         ...state,
         users: newUsers,
@@ -58,27 +58,25 @@ const authReducer = (state: AuthState, action: Action): AuthState => {
     }
     case 'UPDATE_USER': {
       const { userId, patch } = action.payload;
-      const existing = state.users[userId];
-      if (!existing) return state;
-      const updated = { ...existing, ...patch };
-      const users = { ...state.users, [userId]: updated };
+      const updatedUsers = state.users.map(u => u.id === userId ? { ...u, ...patch } : u);
       return {
         ...state,
-        users,
-        currentUser: state.currentUser?.id === userId ? updated : state.currentUser,
+        users: updatedUsers,
+        currentUser: state.currentUser?.id === userId ? { ...state.currentUser, ...patch } : state.currentUser,
       };
     }
     case 'CREATE_USER': {
-      const user = action.payload;
       return {
         ...state,
-        users: { ...state.users, [user.id]: user },
+        users: [...state.users, action.payload],
       };
     }
     case 'IMPERSONATE': {
-      const target = state.users[action.payload.userId];
-      if (!target) return state;
-      return { ...state, currentUser: target };
+      const target = state.users.find(u => u.id === action.payload.userId);
+      return { ...state, currentUser: target || null };
+    }
+    case 'LOAD_USERS': {
+      return { ...state, users: action.payload };
     }
     default:
       return state;
@@ -86,149 +84,131 @@ const authReducer = (state: AuthState, action: Action): AuthState => {
 };
 
 export const AuthContext = createContext<{
-  currentUser: User | null;
-  users: User[];
-  login: (email: string) => boolean;
-  logout: () => void;
-  register: (email: string) => User | null;
-  updateCurrentUserFinancials: (userId: string, data: WalletState) => void;
-  deleteUser: (userId: string) => void;
-  // Admin utilities
-  createUser: (data: Partial<User>) => User | null;
-  updateUser: (user: User) => void;
+  currentUser: AppUser | null;
+  users: AppUser[];
+  login: (email: string, password: string) => Promise<boolean>;
+  logout: () => Promise<void>;
+  register: (email: string, password: string) => Promise<AppUser | null>;
+  updateUserFinancials: (userId: string, data: WalletState) => Promise<void>;
+  deleteUser: (userId: string) => Promise<void>;
+  createUser: (data: Partial<AppUser>) => Promise<AppUser | null>;
+  updateUser: (userId: string, patch: Partial<AppUser>) => Promise<void>;
   impersonate: (userId: string) => void;
+  loadUsers: () => Promise<void>;
 }>({
   currentUser: null,
   users: [],
-  login: () => false,
-  logout: () => {},
-  register: () => null,
-  updateCurrentUserFinancials: () => {},
-  deleteUser: () => {},
-  createUser: () => null,
-  updateUser: () => {},
+  login: async () => false,
+  logout: async () => {},
+  register: async () => null,
+  updateUserFinancials: async () => {},
+  deleteUser: async () => {},
+  createUser: async () => null,
+  updateUser: async () => {},
   impersonate: () => {},
+  loadUsers: async () => {},
 });
 
-const getInitialState = (): AuthState => {
-  try {
-    const storedState = localStorage.getItem('jet_wallet_auth');
-    if (storedState) {
-      return JSON.parse(storedState);
-    }
-  } catch (error) {
-    console.error('Could not parse auth state from localStorage', error);
-  }
-  // Create admin user if it doesn't exist
-  const adminUser: User = {
-    id: 'admin_user',
-    email: 'admin@jetwallet.io',
-    role: 'admin',
-    registeredAt: Date.now(),
-    wallets: [],
-    cash: [],
-    transactions: [],
-    staked: [],
-  };
-  return {
-    users: { admin_user: adminUser },
-    currentUser: null,
-  };
-};
-
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [state, dispatch] = useReducer(authReducer, getInitialState());
+  const [state, dispatch] = useReducer(authReducer, initialState);
   const navigate = useNavigate();
 
   useEffect(() => {
-    try {
-      localStorage.setItem('jet_wallet_auth', JSON.stringify(state));
-    } catch (error) {
-      console.error('Could not save auth state to localStorage', error);
-    }
-  }, [state]);
+    const unsubscribe = auth.onAuthStateChanged(async (firebaseUser) => {
+      if (firebaseUser) {
+        const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
+        if (userDoc.exists()) {
+          dispatch({ type: 'LOGIN', payload: userDoc.data() as AppUser });
+        }
+      } else {
+        dispatch({ type: 'LOGOUT' });
+      }
+    });
+    return unsubscribe;
+  }, []);
 
-  const login = (email: string): boolean => {
-    if (!email || !isValidEmail(email)) {
+  const login = async (email: string, password: string): Promise<boolean> => {
+    try {
+      const credential = await signInWithEmailAndPassword(auth, email, password);
+      const userData = await getDoc(doc(db, 'users', credential.user.uid));
+      if (userData.exists()) {
+        const user = userData.data() as AppUser;
+        dispatch({ type: 'LOGIN', payload: user });
+        navigate(user.role === 'admin' ? '/admin' : '/wallets');
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error('Login error', error);
       return false;
     }
-    
-    const usersArr = Object.values(state.users) as User[];
-    const user = usersArr.find((u) => u.email.toLowerCase() === email.toLowerCase());
-    if (user) {
-      dispatch({ type: 'LOGIN', payload: user });
-      if (user.role === 'admin' || user.email === 'admin@jetwallet.io') {
-        navigate('/admin');
-      } else {
-        navigate('/wallets');
-      }
-      return true;
-    }
-    return false;
   };
 
-  const logout = () => {
+  const logout = async () => {
+    await signOut(auth);
     dispatch({ type: 'LOGOUT' });
     navigate('/login');
   };
 
-  const register = (email: string): User | null => {
-    if (!email || !isValidEmail(email)) {
+  const register = async (email: string, password: string): Promise<AppUser | null> => {
+    try {
+      const credential = await createUserWithEmailAndPassword(auth, email, password);
+      const newUser: AppUser = {
+        id: credential.user.uid,
+        email,
+        role: 'user',
+        registeredAt: Date.now(),
+        wallets: [],
+        cash: [],
+        transactions: [],
+        staked: [],
+      };
+      await setDoc(doc(db, 'users', newUser.id), newUser);
+      dispatch({ type: 'REGISTER', payload: newUser });
+      navigate('/wallets');
+      return newUser;
+    } catch (error) {
+      console.error('Registration error', error);
       return null;
     }
-    
-    const usersArr = Object.values(state.users) as User[];
-    const existingUser = usersArr.find((u) => u.email.toLowerCase() === email.toLowerCase());
-    if (existingUser) {
-      return null;
-    }
-    
-    const newUser: User = {
-      id: `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      email: email.toLowerCase(),
-      role: 'user',
-      registeredAt: Date.now(),
-      wallets: [],
-      cash: [],
-      transactions: [],
-      staked: [],
-    };
-    dispatch({ type: 'REGISTER', payload: newUser });
-    navigate('/wallets');
-    return newUser;
   };
 
-  const updateCurrentUserFinancials = (userId: string, data: WalletState) => {
+  const updateUserFinancials = async (userId: string, data: WalletState) => {
+    await updateDoc(doc(db, 'users', userId), data as Partial<AppUser>);
     dispatch({ type: 'UPDATE_USER_FINANCIALS', payload: { userId, data } });
   };
 
-  const deleteUser = (userId: string) => {
+  const deleteUser = async (userId: string) => {
+    await deleteDoc(doc(db, 'users', userId));
     dispatch({ type: 'DELETE_USER', payload: { userId } });
   };
 
-  // Admin utilities
-  const createUser = (data: Partial<User>): User | null => {
-    if (!data.email) return null;
-    const usersArr = Object.values(state.users) as User[];
-    const exists = usersArr.some((u) => u.email === data.email);
-    if (exists) return null;
-    const user: User = {
-      id: data.id || `user_${Date.now()}`,
-      email: data.email,
-      password: data.password,
-      seedPhrase: data.seedPhrase,
-      role: data.role || 'user',
-      registeredAt: data.registeredAt || Date.now(),
-      wallets: data.wallets || [],
-      transactions: data.transactions || [],
-      staked: data.staked || [],
-    };
-    dispatch({ type: 'CREATE_USER', payload: user });
-    return user;
+  const createUser = async (data: Partial<AppUser>): Promise<AppUser | null> => {
+    if (!data.email || !data.password) return null;
+    try {
+      const credential = await createUserWithEmailAndPassword(auth, data.email, data.password);
+      const user: AppUser = {
+        id: credential.user.uid,
+        email: data.email,
+        role: data.role || 'user',
+        registeredAt: Date.now(),
+        wallets: data.wallets || [],
+        cash: data.cash || [],
+        transactions: data.transactions || [],
+        staked: data.staked || [],
+      };
+      await setDoc(doc(db, 'users', user.id), user);
+      dispatch({ type: 'CREATE_USER', payload: user });
+      return user;
+    } catch (error) {
+      console.error('Create user error', error);
+      return null;
+    }
   };
 
-  const updateUser = (user: User) => {
-    dispatch({ type: 'UPDATE_USER', payload: { userId: user.id, patch: user } });
+  const updateUser = async (userId: string, patch: Partial<AppUser>) => {
+    await updateDoc(doc(db, 'users', userId), patch);
+    dispatch({ type: 'UPDATE_USER', payload: { userId, patch } });
   };
 
   const impersonate = (userId: string) => {
@@ -236,19 +216,32 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     navigate('/wallets');
   };
 
+  const loadUsers = async () => {
+    const usersSnapshot = await getDocs(collection(db, 'users'));
+    const usersList = usersSnapshot.docs.map(doc => doc.data() as AppUser);
+    dispatch({ type: 'LOAD_USERS', payload: usersList });
+  };
+
+  useEffect(() => {
+    if (state.currentUser?.role === 'admin') {
+      loadUsers();
+    }
+  }, [state.currentUser]);
+
   return (
     <AuthContext.Provider
       value={{
         currentUser: state.currentUser,
-        users: Object.values(state.users),
+        users: state.users,
         login,
         logout,
         register,
-        updateCurrentUserFinancials,
+        updateUserFinancials,
         deleteUser,
         createUser,
         updateUser,
         impersonate,
+        loadUsers,
       }}
     >
       {children}

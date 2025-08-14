@@ -21,6 +21,9 @@ const EarnIcon = (props: React.SVGProps<SVGSVGElement>) => (
 const DepositIcon = (props: React.SVGProps<SVGSVGElement>) => (
   <svg {...props} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/><path d="M8 12h8"/><path d="M12 8v8"/></svg>
 );
+const WithdrawIcon = (props: React.SVGProps<SVGSVGElement>) => (
+  <svg {...props} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/><path d="M8 12h8"/><path d="M12 16v-8"/></svg>
+);
 const HistoryIcon = (props: React.SVGProps<SVGSVGElement>) => (
   <svg {...props} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 6v6l4 2"/><path d="M22 12A10 10 0 1 1 12 2a10 10 0 0 1 10 10z"/></svg>
 );
@@ -41,6 +44,7 @@ const navItems = [
   { path: '/exchange', label: 'Exchange', icon: ExchangeIcon },
   { path: '/earn', label: 'Earn', icon: EarnIcon },
   { path: '/deposit', label: 'Deposit', icon: DepositIcon },
+  { path: '/withdraw', label: 'Withdraw', icon: WithdrawIcon },
   { path: '/settings', label: 'Settings', icon: SettingsIcon },
   { path: '/history', label: 'History', icon: HistoryIcon },
 ];
