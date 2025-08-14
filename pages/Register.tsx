@@ -21,7 +21,7 @@ const Register: React.FC = () => {
     return Array.from(words).join(' ');
   }, []);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     if (password !== confirmPassword) {
@@ -32,9 +32,13 @@ const Register: React.FC = () => {
       setError("Please confirm you have backed up your seed phrase.");
       return;
     }
-    const user = register(email, password);
-    if (!user) {
+    try {
+      const user = await register(email, password);
+      if (!user) {
         setError('An account with this email already exists.');
+      }
+    } catch (error) {
+      setError('Registration failed. Please try again.');
     }
   };
 

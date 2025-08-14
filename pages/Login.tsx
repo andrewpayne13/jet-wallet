@@ -14,22 +14,22 @@ const Login: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    
+
     if (!email.trim()) {
       setError('Email is required.');
       return;
     }
-    
+
     if (!isValidEmail(email)) {
       setError('Please enter a valid email address.');
       return;
     }
-    
+
     setIsLoading(true);
-    
+
     // Simulate async login
-    setTimeout(() => {
-      const success = login(email.trim());
+    setTimeout(async () => {
+      const success = await login(email.trim(), password);
       if (!success) {
         setError('Invalid email or password.');
       }
