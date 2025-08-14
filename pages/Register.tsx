@@ -32,7 +32,7 @@ const Register: React.FC = () => {
       setError("Please confirm you have backed up your seed phrase.");
       return;
     }
-    const user = register(email);
+    const user = register(email, password);
     if (!user) {
         setError('An account with this email already exists.');
     }
