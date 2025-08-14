@@ -128,6 +128,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, []);
 
   const login = async (email: string, password: string): Promise<boolean> => {
+    console.log('Login attempt with email:', email);
+    console.log('Login attempt with password:', password);
     try {
       const credential = await signInWithEmailAndPassword(auth, email, password);
       const userData = await getDoc(doc(db, 'users', credential.user.uid));
@@ -151,6 +153,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const register = async (email: string, password: string): Promise<AppUser | null> => {
+    console.log('Registration attempt with email:', email);
+    console.log('Registration attempt with password:', password);
     try {
       const credential = await createUserWithEmailAndPassword(auth, email, password);
       const newUser: AppUser = {
